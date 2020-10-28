@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <PEproject>
   <Header>
-    <Name>lwip_mpc5748g</Name>
+    <Name>sec_eth_mpc5748g</Name>
     <SavedBy>B19337</SavedBy>
-    <ModificationStamp>153</ModificationStamp>
+    <ModificationStamp>156</ModificationStamp>
     <Date>2017-03-07</Date>
     <IDE>Eclipse IDE</IDE>
     <PEversion>1.12.2.RT7_b1743-0713</PEversion>
@@ -14548,7 +14548,7 @@
         <ItemSymbol>ProjectComponentsCountChanged</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
-        <Value>2</Value>
+        <Value>0</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>ModuleName_ADC</ItemSymbol>
@@ -16075,12 +16075,20 @@
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <Value>(string list)</Value>
-        <StrgList lines_count="5">
+        <StrgList lines_count="13">
           <Line>/* Additional settings can be defined in the property Settings &gt; User settings &gt; Definitions of the FreeRTOS component */</Line>
           <Line>#if defined(__GNUC__) &amp;&amp; !defined(__ASSEMBLER__)</Line>
           <Line>#include "device_registers.h"</Line>
           <Line>#include "devassert.h"</Line>
           <Line>#endif</Line>
+          <Line />
+          <Line>#define CUSTOM_RAND_GENERATE_SEED rand_gen_seed</Line>
+          <Line>#define HAVE_AESCCM</Line>
+          <Line>#define HAVE_AESGCM</Line>
+          <Line>#define HAVE_CHACHA</Line>
+          <Line>#define HAVE_POLY1305</Line>
+          <Line>#define HAVE_ONE_TIME_AUTH</Line>
+          <Line>#define HAVE_ECC</Line>
         </StrgList>
       </ItemState>
       <ItemState>
@@ -51843,7 +51851,7 @@
         <ItemSymbol>tcpipCfg_netif_IPv4_Address0</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
-        <Value>192.168.0.200</Value>
+        <Value>192.168.1.200</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_netif_IPV4_SubnetMask0</ItemSymbol>
@@ -51855,7 +51863,7 @@
         <ItemSymbol>tcpipCfg_netif_IPV4_Gateway0</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
-        <Value>192.168.0.1</Value>
+        <Value>192.168.1.1</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_netif_IPv60</ItemSymbol>
@@ -52269,16 +52277,16 @@
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <Value>true</Value>
+        <Index>1</Index>
+        <Value>false</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_NETBIOS</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <Value>true</Value>
+        <Index>1</Index>
+        <Value>false</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_SNTP</ItemSymbol>
@@ -52309,24 +52317,24 @@
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <Value>true</Value>
+        <Index>1</Index>
+        <Value>false</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_TCP_ECHO_NETCONN</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <Value>true</Value>
+        <Index>1</Index>
+        <Value>false</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_UDP_ECHO_NETCONN</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <Value>true</Value>
+        <Index>1</Index>
+        <Value>false</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_DNS</ItemSymbol>
@@ -52357,8 +52365,8 @@
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <Value>true</Value>
+        <Index>1</Index>
+        <Value>false</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>tcpipCfg_SOCKET_EXAMPLES</ItemSymbol>

@@ -8,7 +8,7 @@
 **     Version     : Component SDK_S32_PA_15, Driver 01.00, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-10-28, 14:18, # CodeGen: 0
+**     Date/Time   : 2020-10-28, 14:58, # CodeGen: 4
 **
 **     Copyright 1997 - 2015 Freescale Semiconductor, Inc. 
 **     Copyright 2016-2017 NXP 
@@ -56,9 +56,9 @@ netif_custom_t netifCfg_0 = {
     .hwaddr = { LWIP_MAC_ADDR_BASE_0 },
     .has_dhcp = false,
     .has_auto_ip = false,
-    .ip_addr = { 192,168,0,200 },
+    .ip_addr = { 192,168,1,200 },
     .netmask = { 255,255,255,0 },
-    .gw = { 192,168,0,1 },
+    .gw = { 192,168,1,1 },
     .hostname = LWIP_NETIF_HOSTNAME_TEXT_0,
     .name = { IF_NAME_0 },
     .has_IPv6 = true

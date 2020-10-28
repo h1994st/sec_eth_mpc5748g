@@ -21,6 +21,16 @@ volatile int exit_code = 0;
 
 extern void start_example(void);
 
+// custom random seed function -- by h1994st
+int rand_gen_seed(uint8_t* output, uint32_t sz) {
+    uint32_t i;
+    srand(OSIF_GetMilliseconds());
+    for (i = 0; i < sz; i++) {
+       output[i] = rand() % 256;
+    }
+    return 0;
+}
+
 int main(void)
 {
 

@@ -38,8 +38,8 @@
 /*************************************
  * Raw applications
  *************************************/
-#define LWIP_LWIPERF_APP              1                           /* lwIP iPerf server implementation to measure performance [support only TCP over IPv4] */
-#define LWIP_NETBIOS_APP              1                           /* NetBIOS name server. It responds to name queries for a
+#define LWIP_LWIPERF_APP              0                           /* lwIP iPerf server implementation to measure performance [support only TCP over IPv4] */
+#define LWIP_NETBIOS_APP              0                           /* NetBIOS name server. It responds to name queries for a
                                                                   configurable name. Name resolving is not supported. Note that the
                                                                   device doesn't broadcast its own name so can't detect duplicate names! */
 #define LWIP_SNTP_APP                 0
@@ -48,19 +48,13 @@
 /*************************************
  * Netconn applications
  *************************************/
-#define LWIP_HTTPD_APP                1
-#define LWIP_HTTPD_APP_NETCONN        1                           /* 1: use NETCONN HTTP SERVER */
-#define LWIP_TCPECHO_APP              1
-#define LWIP_TCPECHO_APP_NETCONN      1                           /* 1: use NETCONN TCPECHO SERVER */
-#define LWIP_UDPECHO_APP              1
-#define LWIP_UDPECHO_APP_NETCONN      1                           /* 1: use NETCONN UDPECHO SERVER */
 #define LWIP_DNS_APP                  0
 #define LWIP_SHELL_APP                0
 
 /*************************************
  * Socket applications
  *************************************/
-#define LWIP_CHARGEN_APP              1                           /* 1: Enable CHARGEN, 0: Disable CHARGEN */
+#define LWIP_CHARGEN_APP              0                           /* 1: Enable CHARGEN, 0: Disable CHARGEN */
 #define LWIP_SOCKET_EXAMPLES_APP      0
 #define LWIP_RTP_APP                  0
 #define LWIP_SSL_ECHO_APP             1
