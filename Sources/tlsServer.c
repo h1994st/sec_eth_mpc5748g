@@ -198,6 +198,7 @@ char* bench_chacha20_poly1305_aead(void) {
 	return result;
 }
 
+#if defined(HAVE_AESCCM)
 char* bench_aesccm(word32 keySz) {
 	static char result[32] = "Enc:      KB/s Dec:      KB/s\n";
 	char *p;
@@ -259,7 +260,9 @@ char* bench_aesccm(word32 keySz) {
 
 	return result;
 }
+#endif
 
+#if defined(HAVE_AESGCM)
 char* bench_aesgcm(word32 keySz) {
 	static char result[32] = "Enc:      KB/s Dec:      KB/s\n";
 	char *p;
@@ -321,7 +324,9 @@ char* bench_aesgcm(word32 keySz) {
 
 	return result;
 }
+#endif
 
+#if defined(HAVE_AES_CBC)
 char* bench_aescbc(word32 keySz) {
 	static char result[32] = "Enc:      KB/s Dec:      KB/s\n";
 	char *p;
@@ -342,7 +347,7 @@ char* bench_aescbc(word32 keySz) {
 
 	start_time = current_time();
 	for (i = 0; i < NUM_BLOCKS; i++) {
-		ret = wc_AesCbcEncrypt(enc, bench_plain, bench_cipher, BLOCK_SIZE);
+		ret = wc_AesCbcEncrypt(enc, bench_cipher, bench_plain, BLOCK_SIZE);
 		LWIP_ASSERT("ws_AesCbcEncrypt() failed", ret == 0);
 	}
 	done_time = current_time();
@@ -374,6 +379,7 @@ char* bench_aescbc(word32 keySz) {
 
 	return result;
 }
+#endif
 
 char* bench_ecc_key_gen(word32 keySz) {
 	static char result[45] = "ECC     bit Key Gen:          ms(   3 ops)\n";
@@ -599,21 +605,21 @@ static void socket_server_thread(void *arg) {
 	LWIP_ASSERT("socket_server_thread(): Socket create failed.", listenfd >= 0);
 
 	/* Create and initialize CTX */
-//  ctx = wolfSSL_CTX_new(wolfSSLv23_server_method());
+	WOLFSSL_METHOD* method_instance = wolfSSLv23_server_method();
 	// -- by h1994st: TLS 1.3 methods
 //  WOLFSSL_METHOD* method_instance = wolfTLSv1_3_server_method_ex(NULL);
 //  method_instance->downgrade = 1;
 	// -- by h1994st: TLS 1.2 methods
-	WOLFSSL_METHOD* method_instance = wolfTLSv1_2_server_method_ex(NULL);
+//	WOLFSSL_METHOD* method_instance = wolfTLSv1_2_server_method_ex(NULL);
 	ctx = wolfSSL_CTX_new(method_instance);
 	LWIP_ASSERT("wolfSSL_CTX_new() failed", ctx != NULL);
 
 	/* Limit to AES128 - hardware-accelerated */
-//  wolfSSL_CTX_set_cipher_list(ctx, "AES128-SHA");
+//	wolfSSL_CTX_set_cipher_list(ctx, "AES128-SHA");
 	// -- by h1994st: use CHACHA20-POLY1305 for TLS 1.3
 //  ret = wolfSSL_CTX_set_cipher_list(ctx, "TLS13-CHACHA20-POLY1305-SHA256");
 	// -- by h1994st: use CHACHA-POLY for TLS 1.2 & DTLS
-	ret = wolfSSL_CTX_set_cipher_list(ctx, "ECDHE-ECDSA-CHACHA20-POLY1305");
+//	ret = wolfSSL_CTX_set_cipher_list(ctx, "ECDHE-ECDSA-CHACHA20-POLY1305");
 	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
 
 	// -- by h1994st: fewer packet
@@ -621,6 +627,7 @@ static void socket_server_thread(void *arg) {
 	LWIP_ASSERT("wolfSSL_CTX_set_group_messages() failed", ret == SSL_SUCCESS);
 
 	// -- by h1994st: set key size
+#ifdef WOLFSSL_TLS13
 #ifndef NO_DH
 	ret = wolfSSL_CTX_SetMinDhKey_Sz(ctx, 1024);
 	LWIP_ASSERT("wolfSSL_CTX_SetMinDhKey_Sz() failed", ret == SSL_SUCCESS);
@@ -633,6 +640,7 @@ static void socket_server_thread(void *arg) {
 	ret = wolfSSL_CTX_SetMinEccKey_Sz(ctx, 256); // use 256 bits, instead of 224 bits (default)
 	LWIP_ASSERT("wolfSSL_CTX_SetMinEccKey_Sz() failed", ret == SSL_SUCCESS);
 #endif
+#endif /* WOLFSSL_TLS13 */
 
 	/* Load CA certificates */
 	ret = wolfSSL_CTX_load_verify_buffer(ctx, CA_CERT, CA_CERT_SIZE,
@@ -653,8 +661,8 @@ static void socket_server_thread(void *arg) {
 			ret == SSL_SUCCESS);
 
 	// -- by h1994st: set client verification
-	wolfSSL_CTX_set_verify(ctx,
-			SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
+//	wolfSSL_CTX_set_verify(ctx,
+//			SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
 
 	if (bind(listenfd, (struct sockaddr * ) &socket_saddr, sizeof(socket_saddr))
 			== -1) {
@@ -745,24 +753,30 @@ static void socket_server_thread(void *arg) {
 				buf[readcount] = 0;
 				if (!strncmp(buf, "benchmark_chacha_poly", 21)) {
 					strncpy(buf, bench_chacha20_poly1305_aead(), 40);
+#if defined(HAVE_AESGCM)
 				} else if (!strncmp(buf, "benchmark_aesgcm_128", 20)) {
 					strncpy(buf, bench_aesgcm(128 / 8), 40);
 				} else if (!strncmp(buf, "benchmark_aesgcm_192", 20)) {
 					strncpy(buf, bench_aesgcm(192 / 8), 40);
 				} else if (!strncmp(buf, "benchmark_aesgcm_256", 20)) {
 					strncpy(buf, bench_aesgcm(256 / 8), 40);
+#endif
+#if defined(HAVE_AESCCM)
 				} else if (!strncmp(buf, "benchmark_aesccm_128", 20)) {
 					strncpy(buf, bench_aesccm(128 / 8), 40);
 				} else if (!strncmp(buf, "benchmark_aesccm_192", 20)) {
 					strncpy(buf, bench_aesccm(192 / 8), 40);
 				} else if (!strncmp(buf, "benchmark_aesccm_256", 20)) {
 					strncpy(buf, bench_aesccm(256 / 8), 40);
+#endif
+#if defined(HAVE_AES_CBC)
 				} else if (!strncmp(buf, "benchmark_aescbc_128", 20)) {
 					strncpy(buf, bench_aescbc(128 / 8), 40);
 				} else if (!strncmp(buf, "benchmark_aescbc_192", 20)) {
 					strncpy(buf, bench_aescbc(192 / 8), 40);
 				} else if (!strncmp(buf, "benchmark_aescbc_256", 20)) {
 					strncpy(buf, bench_aescbc(256 / 8), 40);
+#endif
 				} else if (!strncmp(buf, "benchmark_ecc_key_gen_256", 25)) {
 					strncpy(buf, bench_ecc_key_gen(256 / 8), 45);
 				} else if (!strncmp(buf, "benchmark_ecdsa_256", 19)) { // sign, verify
