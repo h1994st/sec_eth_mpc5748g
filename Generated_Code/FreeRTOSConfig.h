@@ -7,7 +7,7 @@
 **     Version     : Component SDK_S32_PA_15, Driver 01.00, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-10-28, 14:58, # CodeGen: 4
+**     Date/Time   : 2020-10-28, 21:19, # CodeGen: 5
 **     Contents    :
 **         xCoRoutineCreate               - BaseType_t xCoRoutineCreate( crCOROUTINE_CODE pxCoRoutineCode, UBaseType_t...
 **         crDELAY                        - #define crDELAY( xHandle, xTicksToDelay );
@@ -245,7 +245,7 @@
 #include "device_registers.h"
 #include "devassert.h"
 #endif
-#define CUSTOM_RAND_GENERATE_SEED rand_gen_seed
+#define CUSTOM_RAND_GENERATE_SEED customRandSeed
 #define HAVE_AESCCM
 #define HAVE_AESGCM
 #define HAVE_CHACHA

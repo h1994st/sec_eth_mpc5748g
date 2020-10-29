@@ -3,7 +3,7 @@
   <Header>
     <Name>sec_eth_mpc5748g</Name>
     <SavedBy>B19337</SavedBy>
-    <ModificationStamp>156</ModificationStamp>
+    <ModificationStamp>158</ModificationStamp>
     <Date>2017-03-07</Date>
     <IDE>Eclipse IDE</IDE>
     <PEversion>1.12.2.RT7_b1743-0713</PEversion>
@@ -16082,7 +16082,7 @@
           <Line>#include "devassert.h"</Line>
           <Line>#endif</Line>
           <Line />
-          <Line>#define CUSTOM_RAND_GENERATE_SEED rand_gen_seed</Line>
+          <Line>#define CUSTOM_RAND_GENERATE_SEED customRandSeed</Line>
           <Line>#define HAVE_AESCCM</Line>
           <Line>#define HAVE_AESGCM</Line>
           <Line>#define HAVE_CHACHA</Line>
@@ -52397,8 +52397,8 @@
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <Value>true</Value>
+        <Index>1</Index>
+        <Value>false</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>MemCfgGrp</ItemSymbol>

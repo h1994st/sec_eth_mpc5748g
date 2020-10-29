@@ -57,7 +57,7 @@
 #define LWIP_CHARGEN_APP              0                           /* 1: Enable CHARGEN, 0: Disable CHARGEN */
 #define LWIP_SOCKET_EXAMPLES_APP      0
 #define LWIP_RTP_APP                  0
-#define LWIP_SSL_ECHO_APP             1
+#define LWIP_SSL_ECHO_APP             0
 
 /****************************************************************************
  * ENET RX/TX BUFFER DESCRIPTOR
