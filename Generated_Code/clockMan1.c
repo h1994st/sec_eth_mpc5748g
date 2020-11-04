@@ -7,7 +7,7 @@
 **     Version     : Component SDK_S32_PA_15, Driver 01.00, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-10-28, 14:18, # CodeGen: 0
+**     Date/Time   : 2020-11-04, 13:53, # CodeGen: 9
 **
 **     Copyright 1997 - 2015 Freescale Semiconductor, Inc. 
 **     Copyright 2016-2017 NXP 
@@ -64,9 +64,104 @@ mc_me_peripheral_clock_config_t peripheralClockMcMeConfig0[] = {
         .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
     },
     {
+        .clockName                      = DMAMUX0_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
         .clockName                      = ENET0_CLK,
         .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_2,
         .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_0,
+    },
+    {
+        .clockName                      = LIN0_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN1_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN2_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN3_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN4_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN5_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN6_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN7_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN8_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN9_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN10_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN11_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN12_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN13_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN14_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN15_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN16_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = LIN17_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
     },
     {
         .clockName                      = PITRTI0_CLK,
@@ -90,6 +185,11 @@ mc_me_peripheral_clock_config_t peripheralClockMcMeConfig0[] = {
     },
     {
         .clockName                      = ENET0_TIME_CLK,
+        .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
+        .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
+    },
+    {
+        .clockName                      = DMAMUX1_CLK,
         .mc_me_RunPeriphConfig          = MC_ME_PERIPH_CONFIG_1,
         .mc_me_LowPowerPeriphConfig     = MC_ME_PERIPH_CONFIG_1,
     },
@@ -414,7 +514,7 @@ clock_manager_user_config_t clockMan1_InitConfig0 = {
                 .stop0               = false,
             },
         },
-        .count                    = 9,
+        .count                    = 29,
         .peripherals              = peripheralClockMcMeConfig0,
     },
 

@@ -234,6 +234,10 @@ int main(void) {
 	ret = PINS_DRV_Init(NUM_OF_CONFIGURED_PINS, g_pin_mux_InitConfigArr);
 	DEV_ASSERT(STATUS_SUCCESS == ret);
 
+	/* Initialize LINFLEXD peripheral for UART echo to console */
+	LINFLEXD_UART_DRV_Init(INST_LINFLEXD_UART1, &linflexd_uart1_State,
+			&linflexd_uart1_InitConfig0);
+
 	/* Initialize FreeRTOS */
 	BaseType_t taskRet = xTaskCreate(mainLoopTask, "mainloop", 256U, NULL, 1,
 	NULL);

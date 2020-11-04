@@ -620,6 +620,8 @@ static void socket_server_thread(void *arg) {
 //  ret = wolfSSL_CTX_set_cipher_list(ctx, "TLS13-CHACHA20-POLY1305-SHA256");
 	// -- by h1994st: use CHACHA-POLY for TLS 1.2 & DTLS
 //	ret = wolfSSL_CTX_set_cipher_list(ctx, "ECDHE-ECDSA-CHACHA20-POLY1305");
+	// -- by h1994st: use TLS_DHE_RSA_WITH_AES_128_CBC_SHA256 for TLS 1.2 - hardware-accelerated
+	ret = wolfSSL_CTX_set_cipher_list(ctx, "DHE-RSA-AES128-SHA256");
 	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
 
 	// -- by h1994st: fewer packet

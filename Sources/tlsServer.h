@@ -16,7 +16,7 @@
 #define CERT_1024
 
 // -- by h1994st: use 256-bit ecc key
-#define CERT_256
+//#define CERT_256
 
 void tlsInit(void);
 
