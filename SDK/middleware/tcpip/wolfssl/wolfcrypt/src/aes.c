@@ -7839,6 +7839,81 @@ int  wc_AesCcmDecrypt(Aes* aes, byte* out, const byte* in, word32 inSz,
 }
 #endif /* HAVE_AES_DECRYPT */
 
+#elif defined(NXP_SDK_HSM) // -- by h1994st
+
+int wc_AesCcmEncrypt(Aes* aes, byte* out, const byte* in, word32 inSz,
+                     const byte* nonce, word32 nonceSz,
+                     byte* authTag, word32 authTagSz,
+                     const byte* authIn, word32 authInSz)
+{
+	status_t status;
+    uint8_t* pKey;
+#ifdef LITTLE_ENDIAN_ORDER
+    word32 key[4];
+    ByteReverseWords(key, aes->key, 16);
+    pKey = (uint8_t*)key;
+#else
+    pKey = (uint8_t*)aes->key;
+#endif
+    status = HSM_DRV_LoadPlainKey(pKey, HSM_TIMEOUT);
+    if (status != STATUS_SUCCESS)
+    {
+        return WC_TIMEOUT_E;
+    }
+//	hsm_ret = HSM_DRV_EncryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+//			BLOCK_SIZE, ucMsg,
+//			ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
+    status = HSM_DRV_EncryptCCM(HSM_RAM_KEY, nonceSz, nonce,
+    		authInSz, authIn, inSz, in, out, authTagSz, authTag, HSM_TIMEOUT);
+	if (status != STATUS_SUCCESS)
+    {
+        return WC_TIMEOUT_E;
+    }
+
+    return 0;
+}
+
+#ifdef HAVE_AES_DECRYPT
+int  wc_AesCcmDecrypt(Aes* aes, byte* out, const byte* in, word32 inSz,
+                      const byte* nonce, word32 nonceSz,
+                      const byte* authTag, word32 authTagSz,
+                      const byte* authIn, word32 authInSz)
+{
+	status_t status;
+    uint8_t* pKey;
+    bool authStatus = true;
+#ifdef LITTLE_ENDIAN_ORDER
+    word32 key[4];
+    ByteReverseWords(key, aes->key, 16);
+    pKey = (uint8_t*)key;
+#else
+    pKey = (uint8_t*)aes->key;
+#endif
+    status = HSM_DRV_LoadPlainKey(pKey, HSM_TIMEOUT);
+    if (status != STATUS_SUCCESS)
+    {
+        return WC_TIMEOUT_E;
+    }
+
+//	hsm_ret = HSM_DRV_DecryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+//			BLOCK_SIZE, ucEncMsg,
+//			ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
+    status = HSM_DRV_DecryptCCM(HSM_RAM_KEY, nonceSz, nonce,
+    		authInSz, authIn, inSz, in, out, authTagSz, authTag, &authStatus,
+			HSM_TIMEOUT);
+    if (status != STATUS_SUCCESS)
+    {
+        return WC_TIMEOUT_E;
+    }
+
+    if (!HSM_GetAuthResult()) {
+    	XMEMSET(out, 0, inSz);
+    	return AES_CCM_AUTH_E;
+    }
+
+    return 0;
+}
+#endif /* HAVE_AES_DECRYPT */
 
 /* software AES CCM */
 #else
