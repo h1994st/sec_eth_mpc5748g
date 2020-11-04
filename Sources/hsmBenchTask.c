@@ -155,9 +155,6 @@ void hsmBenchMainLoopTask(void *pvParam)
 	HSM_DRV_Init(&hsm1_State);
 	HSM_DRV_LoadPlainKey(ucPlainKey, TIMEOUT_ENCRYPTION);
 
-	/* Initialize LINFLEXD peripheral for UART echo to console */
-//	LINFLEXD_UART_DRV_Init(INST_LINFLEXD_UART1, &linflexd_uart1_State, &linflexd_uart1_InitConfig0);
-
 	do {
 		/* Every 'TASK0_DELAY' encrypt message */
 		vTaskDelay(TASK0_DELAY);
