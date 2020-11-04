@@ -142,7 +142,7 @@ void hsmBenchMainLoopTask(void *pvParam)
     };
     uint8_t ucTag[AES_AUTH_TAG_SZ] = { 0 };
     uint8_t ucAdd[AES_AUTH_TAG_SZ] = { 0 };
-    bool authStatus = true;
+    bool authStatus = false;
     static EncryptionType_e eEncType = ENCRYPT_NONE;
 
     /** Initialize HSM Driver: */
@@ -233,7 +233,7 @@ void hsmBenchMainLoopTask(void *pvParam)
             				BLOCK_SIZE, ucEncMsg,
 							ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
             		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-            		DEV_ASSERT(HSM_GetAuthResult() == true);
+            		DEV_ASSERT(authStatus == true);
 //            		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
             	}
             	done_time = current_time_ms();
@@ -280,7 +280,7 @@ void hsmBenchMainLoopTask(void *pvParam)
             				BLOCK_SIZE, ucEncMsg,
 							ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
             		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-            		DEV_ASSERT(HSM_GetAuthResult() == true);
+            		DEV_ASSERT(authStatus == true);
 //            		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
             	}
             	done_time = current_time_ms();
