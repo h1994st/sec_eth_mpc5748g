@@ -7,7 +7,7 @@
 **     Version     : Component 1.2.0, Driver 1.4, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-10-28, 14:18, # CodeGen: 0
+**     Date/Time   : 2020-11-04, 15:21, # CodeGen: 12
 **     Abstract    :
 **
 **     Settings    :
@@ -393,9 +393,9 @@
 **                  Transmit Data                          : <Automatic>
 **                Custom name                              : LINFlexD_2
 **                LINFlexD_2                               : 
-**                  Receive Data                           : <Automatic>
+**                  Receive Data                           : PC[9]
 **                  LINFlexD_2: Receive Data               : <Automatic>
-**                  Transmit Data                          : <Automatic>
+**                  Transmit Data                          : PC[8]
 **                Custom name                              : LINFlexD_3
 **                LINFlexD_3                               : 
 **                  Receive Data                           : <Automatic>
@@ -3174,7 +3174,7 @@
 
 
 /*! @brief User number of configured pins */
-#define NUM_OF_CONFIGURED_PINS 30
+#define NUM_OF_CONFIGURED_PINS 32
 
 /*! @brief User configuration structure */
 extern pin_settings_config_t g_pin_mux_InitConfigArr[NUM_OF_CONFIGURED_PINS];
