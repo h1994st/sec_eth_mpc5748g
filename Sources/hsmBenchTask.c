@@ -1,23 +1,24 @@
-/* Including needed modules to compile this module/procedure */
+#include "hsmBenchTask.h"
+
+#if ST_BENCH_W_HSM
+
 #include "Cpu.h"
-#include "clockMan1.h"
+
+#if defined(USING_OS_FREERTOS)
+/* FreeRTOS kernel includes. */
 #include "FreeRTOS.h"
-#include "hsm1.h"
-
-volatile int exit_code = 0;
-
-/* User includes (#include below this line is not maintained by Processor Expert) */
 #include "task.h"
-#include "queue.h"
+#endif /* defined(USING_OS_FREERTOS) */
+
+#include "hsm1.h"
 #include "hsm_driver.h"        /* HSM driver include */
+extern bool HSM_GetAuthResult(void);
+
 #include <string.h>
 
 /* FreeRTOS defines: */
 #define TASK0_DELAY         ((TickType_t)100 / portTICK_PERIOD_MS)
 #define TASK0_PRIORITY      (tskIDLE_PRIORITY + 1)
-#define TASK1_DELAY         ((TickType_t)110 / portTICK_PERIOD_MS)
-#define TASK1_PRIORITY      (tskIDLE_PRIORITY + 2)
-#define NOF_QUEUES          1
 #define MESSAGE_LENGTH      16
 
 #define BLOCK_SIZE          1024
@@ -129,7 +130,7 @@ const uint8_t ucMsg[BLOCK_SIZE] = { 0 };
 uint8_t ucEncMsg[BLOCK_SIZE] = { 0 };
 uint8_t ucDecMsg[BLOCK_SIZE] = { 0 };
 
-void vTASKBench(void *pvParam)
+void hsmBenchMainLoopTask(void *pvParam)
 {
 	static char result[38] = "Enc:           ms Dec:           ms\r\n";
 	char *p = NULL;
@@ -151,12 +152,11 @@ void vTASKBench(void *pvParam)
     };
 
 	status_t hsm_ret;
-	static hsm_state_t state1;
-	HSM_DRV_Init(&state1);
+	HSM_DRV_Init(&hsm1_State);
 	HSM_DRV_LoadPlainKey(ucPlainKey, TIMEOUT_ENCRYPTION);
 
 	/* Initialize LINFLEXD peripheral for UART echo to console */
-	LINFLEXD_UART_DRV_Init(INST_LINFLEXD_UART1, &linflexd_uart1_State, &linflexd_uart1_InitConfig0);
+//	LINFLEXD_UART_DRV_Init(INST_LINFLEXD_UART1, &linflexd_uart1_State, &linflexd_uart1_InitConfig0);
 
 	do {
 		/* Every 'TASK0_DELAY' encrypt message */
@@ -304,35 +304,4 @@ void vTASKBench(void *pvParam)
 	} while (1);
 }
 
-int hsm_bench(void)
-{
-  /* Write your local variable definition here */
-
-  /*** Processor Expert internal initialization. DON'T REMOVE THIS CODE!!! ***/
-  #ifdef PEX_RTOS_INIT
-    PEX_RTOS_INIT();                   /* Initialization of the selected RTOS. Macro is defined by the RTOS component. */
-  #endif
-  /*** End of Processor Expert internal initialization.                    ***/
-  /* Write your code here */
-
-    /* Initialize clocks */
-    CLOCK_SYS_Init(g_clockManConfigsArr,   CLOCK_MANAGER_CONFIG_CNT,
-                   g_clockManCallbacksArr, CLOCK_MANAGER_CALLBACK_CNT);
-    CLOCK_SYS_UpdateConfiguration(0U, CLOCK_MANAGER_POLICY_AGREEMENT);
-
-    /* Initialize pins */
-    PINS_DRV_Init(NUM_OF_CONFIGURED_PINS, g_pin_mux_InitConfigArr);
-
-    /* Initialize FreeRTOS: */
-//    xTaskCreate(vTASK0, (const char* const)"TASK0", configMINIMAL_STACK_SIZE, (void*)0, TASK0_PRIORITY, NULL);
-//    xTaskCreate(vTASK1, (const char* const)"TASK1", configMINIMAL_STACK_SIZE, (void*)1, TASK1_PRIORITY, NULL);
-//    g_tQueueHandle = xQueueCreate(NOF_QUEUES, sizeof(Data_t));
-    BaseType_t task_ret = xTaskCreate(vTASKBench, (const char* const)"Benchmark Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-    DEV_ASSERT(task_ret == pdPASS);
-    vTaskStartScheduler();
-
-    for (;;)
-    {
-    }
-}
-
+#endif /* ST_BENCH_W_HSM */

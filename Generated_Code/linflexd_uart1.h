@@ -7,7 +7,7 @@
 **     Version     : Component SDK_S32_PA_15, Driver 01.00, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-11-04, 13:53, # CodeGen: 9
+**     Date/Time   : 2020-11-04, 15:14, # CodeGen: 10
 **     Abstract    :
 **
 **     Contents    :
@@ -74,7 +74,7 @@
 #include "linflexd_uart_driver.h"
 
 /*! @brief Device instance number */
-#define INST_LINFLEXD_UART1 (0U)
+#define INST_LINFLEXD_UART1 (2U)
 
 /*! Driver state structure */
 extern linflexd_uart_state_t linflexd_uart1_State;

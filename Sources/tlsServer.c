@@ -4,6 +4,8 @@
  *  Created on: 2020/10/28
  *      Author: shengtuo
  */
+#include "config.h"
+#if ST_TLS_APP
 
 #include "tlsServer.h"
 
@@ -121,8 +123,12 @@ double current_time(void);
 char* bench_aescbc(word32 keySz);
 
 char* bench_chacha20_poly1305_aead(void);
+#if defined(HAVE_AESCCM)
 char* bench_aesccm(word32 keySz);
+#endif
+#if defined(HAVE_AESGCM)
 char* bench_aesgcm(word32 keySz);
+#endif
 char* bench_ecc_key_gen();
 char* bench_ecdsa(word32 keySz);
 char* bench_ecdhe();
@@ -813,4 +819,6 @@ void tlsInit(void) {
 	LWIP_ASSERT("secure_socket_init() failed", thread != NULL);
 }
 
-#endif
+#endif /* LWIP_SOCKET */
+
+#endif /* ST_TLS_APP */

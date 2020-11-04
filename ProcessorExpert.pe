@@ -3,7 +3,7 @@
   <Header>
     <Name>sec_eth_mpc5748g</Name>
     <SavedBy>B19337</SavedBy>
-    <ModificationStamp>161</ModificationStamp>
+    <ModificationStamp>162</ModificationStamp>
     <Date>2017-03-07</Date>
     <IDE>Eclipse IDE</IDE>
     <PEversion>1.12.2.RT7_b1743-0713</PEversion>
@@ -2112,8 +2112,8 @@
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
         <TypeSpecNameState>typeClockEnaDis</TypeSpecNameState>
-        <Index>1</Index>
-        <EnumSymbVal>Disabled</EnumSymbVal>
+        <Index>0</Index>
+        <EnumSymbVal>Enabled</EnumSymbVal>
       </ItemState>
       <ItemState>
         <ItemSymbol>Peripheral8_CLKEnablePowerMode_0_0</ItemSymbol>
@@ -2270,8 +2270,8 @@
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
         <TypeSpecNameState>typeClockEnaDis</TypeSpecNameState>
-        <Index>1</Index>
-        <EnumSymbVal>Disabled</EnumSymbVal>
+        <Index>0</Index>
+        <EnumSymbVal>Enabled</EnumSymbVal>
       </ItemState>
       <ItemState>
         <ItemSymbol>Peripheral83_CLKEnablePowerMode_0_0</ItemSymbol>
@@ -14554,7 +14554,7 @@
         <ItemSymbol>ProjectComponentsCountChanged</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
-        <Value>2</Value>
+        <Value>0</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>ModuleName_ADC</ItemSymbol>
@@ -54091,7 +54091,7 @@
         <ItemSymbol>PeriphDevice</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
-        <Value>LINFlexD_0</Value>
+        <Value>LINFlexD_2</Value>
         <SharedPrphMode>false</SharedPrphMode>
       </ItemState>
       <ItemState>
@@ -54162,7 +54162,7 @@
       </ItemState>
       <ItemState>
         <ItemSymbol>TransferType0</ItemSymbol>
-        <ReadOnly>false</ReadOnly>
+        <ReadOnly>true</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
         <Index>0</Index>
@@ -54187,20 +54187,20 @@
       <ItemState>
         <ItemSymbol>ActualBaudRate0</ItemSymbol>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Value>9599</Value>
+        <Value>9600</Value>
         <Base>DEC</Base>
       </ItemState>
       <ItemState>
         <ItemSymbol>Parity0</ItemSymbol>
-        <ReadOnly>true</ReadOnly>
+        <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>1</Index>
-        <EnumSymbVal>true</EnumSymbVal>
+        <Index>0</Index>
+        <EnumSymbVal>false</EnumSymbVal>
       </ItemState>
       <ItemState>
         <ItemSymbol>ParityType0</ItemSymbol>
-        <ReadOnly>false</ReadOnly>
+        <ReadOnly>true</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
         <Index>0</Index>
@@ -54219,8 +54219,8 @@
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <PropertyModelIsAutomatic>false</PropertyModelIsAutomatic>
-        <Index>0</Index>
-        <EnumSymbVal>LINFLEXD_UART_7_BITS</EnumSymbVal>
+        <Index>1</Index>
+        <EnumSymbVal>LINFLEXD_UART_8_BITS</EnumSymbVal>
       </ItemState>
       <ItemState>
         <ItemSymbol>RxDMAChannel0</ItemSymbol>

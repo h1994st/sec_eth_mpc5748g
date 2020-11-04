@@ -7,7 +7,7 @@
 **     Version     : Component SDK_S32_PA_15, Driver 01.00, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-11-04, 13:53, # CodeGen: 9
+**     Date/Time   : 2020-11-04, 15:14, # CodeGen: 10
 **     Abstract    :
 **
 **
@@ -57,10 +57,10 @@ linflexd_uart_state_t linflexd_uart1_State;
 const linflexd_uart_user_config_t linflexd_uart1_InitConfig0 = {
   .transferType = LINFLEXD_UART_USING_INTERRUPTS,
   .baudRate = 9600U,
-  .parityCheck = true,
+  .parityCheck = false,
   .parityType = LINFLEXD_UART_PARITY_EVEN,
   .stopBitsCount = LINFLEXD_UART_ONE_STOP_BIT,
-  .wordLength = LINFLEXD_UART_7_BITS,
+  .wordLength = LINFLEXD_UART_8_BITS,
   .rxDMAChannel = 0U,
   .txDMAChannel = 0U,
 };
