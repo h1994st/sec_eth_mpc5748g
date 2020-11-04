@@ -3322,7 +3322,7 @@ void HSM_DRV_IRQHandler(void)
         }
 
         /* If the command was AES GCM/CCM decrypt, retrieve the result of the authentication */
-        if ((s_hsmStatePtr->cmd == HSM_CMD_SYM_AES_GCM_DEC) || (s_hsmStatePtr->cmd == HSM_CMD_SYM_AES_GCM_DEC))
+        if ((s_hsmStatePtr->cmd == HSM_CMD_SYM_AES_GCM_DEC) || (s_hsmStatePtr->cmd == HSM_CMD_SYM_AES_CCM_DEC))
         {
             if (s_hsmStatePtr->verifStatus != NULL)
             {
