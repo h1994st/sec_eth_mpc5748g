@@ -2937,6 +2937,9 @@ int wc_AesSetIV(Aes* aes, const byte* iv)
     int wc_AesCbcEncrypt(Aes* aes, byte* out, const byte* in, word32 sz)
     {
         int ret = 0;
+        uint8_t* pIn = in;
+        uint8_t* pOut = out;
+        uint8_t* pIv = (uint8_t*)aes->reg;
         uint8_t* pKey;
 #ifdef LITTLE_ENDIAN_ORDER
         word32 key[4];
@@ -2950,13 +2953,45 @@ int wc_AesSetIV(Aes* aes, const byte* iv)
             return WC_TIMEOUT_E;
         }
 
-        if (STATUS_SUCCESS != HSM_DRV_EncryptCBC(HSM_RAM_KEY, in, sz,
-                                                    (uint8_t*)aes->reg, out, HSM_TIMEOUT))
+        /* Check the buffers addresses are 32 bit aligned */
+        if ((wolfssl_word)in % NXP_SDK_HSM_ALIGN) {
+        	// alignment error
+#ifndef NO_WOLFSSL_ALLOC_ALIGN
+            byte* tmp = (byte*)XMALLOC(sz + AES_BLOCK_SIZE + NXP_SDK_HSM_ALIGN,
+            		aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+            byte* tmp_align;
+            if (tmp == NULL) return MEMORY_E;
+
+            tmp_align = tmp + (NXP_SDK_HSM_ALIGN - ((size_t)tmp % NXP_SDK_HSM_ALIGN));
+
+            XMEMCPY(tmp_align, pIn, sz);
+
+            if (STATUS_SUCCESS != HSM_DRV_EncryptCBC(HSM_RAM_KEY, tmp_align, sz,
+            		pIv, tmp_align, HSM_TIMEOUT))
+            {
+                ret = WC_TIMEOUT_E;
+            }
+            // copy data back
+			XMEMCPY(pOut, tmp_align, sz);
+
+            /* store iv for next call */
+			XMEMCPY(pIv, pOut + sz - AES_BLOCK_SIZE, AES_BLOCK_SIZE);
+
+            XFREE(tmp, aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+
+            return ret;
+#else
+            return BAD_ALIGN_E;
+#endif
+        }
+
+        if (STATUS_SUCCESS != HSM_DRV_EncryptCBC(HSM_RAM_KEY, pIn, sz,
+        		pIv, pOut, HSM_TIMEOUT))
         {
             ret = WC_TIMEOUT_E;
         }
         /* store iv for next call */
-        XMEMCPY(aes->reg, out + sz - AES_BLOCK_SIZE, AES_BLOCK_SIZE);
+        XMEMCPY(pIv, pOut + sz - AES_BLOCK_SIZE, AES_BLOCK_SIZE);
 
         return ret;
     }
@@ -2978,7 +3013,7 @@ int wc_AesSetIV(Aes* aes, const byte* iv)
         }
 
         if (STATUS_SUCCESS != HSM_DRV_DecryptCBC(HSM_RAM_KEY, (uint8_t*)in, sz,
-                                        (uint8_t*)aes->reg, out, HSM_TIMEOUT))
+        		(uint8_t*)aes->reg, out, HSM_TIMEOUT))
         {
             ret = WC_TIMEOUT_E;
         }

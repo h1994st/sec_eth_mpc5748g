@@ -12,9 +12,9 @@
 
 #include "hsm1.h"
 #include "hsm_driver.h"        /* HSM driver include */
-extern bool HSM_GetAuthResult(void);
 
 #include <string.h>
+#include <wolfssl/wolfcrypt/aes.h>
 
 /* FreeRTOS defines: */
 #define TASK_DELAY         ((TickType_t)100 / portTICK_PERIOD_MS)
@@ -126,7 +126,7 @@ custom_itoa(char *result, size_t bufsize, int number)
 }
 
 /* Benchmark Tasks */
-static uint8_t ucMsg[BLOCK_SIZE] = { 0 };
+static uint8_t ucMsg[BLOCK_SIZE + 1] = { 0 };
 static uint8_t ucEncMsg[BLOCK_SIZE] = { 0 };
 static uint8_t ucDecMsg[BLOCK_SIZE] = { 0 };
 static uint32_t start_time, done_time;
@@ -147,7 +147,7 @@ static void benchNone()
 {
 	// is CBC deterministic?
 	status_t hsm_ret;
-	memset(ucMsg, 1, BLOCK_SIZE);
+	memset(ucMsg, 1, BLOCK_SIZE + 1);
 	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
 	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
 	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucDecMsg, TIMEOUT_ENCRYPTION);
@@ -159,6 +159,35 @@ static void benchNone()
 	} else {
 		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnn\r\n", 5, TIMEOUT_ENCRYPTION);
 	}
+
+	// does wolfSSL CBC work well?
+	Aes* enc = (Aes*)XMALLOC(sizeof(Aes), 0, 0);
+	int wc_ret = 0;
+	wc_ret = wc_AesInit(enc, NULL, INVALID_DEVID);
+	DEV_ASSERT(wc_ret == 0);
+
+	memset(ucEncMsg, 0, BLOCK_SIZE);
+	wc_ret = wc_AesSetKey(enc, (byte*)ucPlainKey, 16, (byte*)ucInitVector,
+			AES_ENCRYPTION);
+	DEV_ASSERT(wc_ret == 0);
+	wc_ret = wc_AesCbcEncrypt(enc, ucEncMsg, ucMsg + 1, BLOCK_SIZE);
+	DEV_ASSERT(wc_ret == 0);
+	DEV_ASSERT(bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE));
+
+	memset(ucDecMsg, 0, BLOCK_SIZE);
+	wc_ret = wc_AesSetKey(enc, (byte*)ucPlainKey, 16, (byte*)ucInitVector,
+			AES_ENCRYPTION);
+	DEV_ASSERT(wc_ret == 0);
+	wc_ret = wc_AesCbcEncrypt(enc, ucDecMsg, ucMsg, BLOCK_SIZE);
+	DEV_ASSERT(wc_ret == 0);
+
+	ret = bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE);
+	if (ret) {
+		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyyy\r\n", 6, TIMEOUT_ENCRYPTION);
+	} else {
+		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnnn\r\n", 6, TIMEOUT_ENCRYPTION);
+	}
+	XFREE(enc, 0, 0);
 
 	memset(ucMsg, 0, BLOCK_SIZE);
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);

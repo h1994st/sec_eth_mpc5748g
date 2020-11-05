@@ -45,6 +45,8 @@
 
 volatile int exit_code = 0;
 
+int customRandSeed(uint8_t* output, uint32_t sz);
+
 /* custom random seed function -- by h1994st */
 int customRandSeed(uint8_t* output, uint32_t sz) {
 	uint32_t i;
