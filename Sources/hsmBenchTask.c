@@ -17,7 +17,7 @@ extern bool HSM_GetAuthResult(void);
 #include <string.h>
 
 /* FreeRTOS defines: */
-#define TASK0_DELAY         ((TickType_t)100 / portTICK_PERIOD_MS)
+#define TASK_DELAY         ((TickType_t)100 / portTICK_PERIOD_MS)
 #define TASK0_PRIORITY      (tskIDLE_PRIORITY + 1)
 #define MESSAGE_LENGTH      16
 
@@ -31,25 +31,25 @@ extern bool HSM_GetAuthResult(void);
 /* Application defines: */
 #define TIMEOUT_ENCRYPTION    (1000U)
 #define PLAINTEXT    "AccessCode:01234"
-#define MSG_ECB_OK   "\r\nAES ECB Encryption/Decryption OK\r\n"
-#define MSG_CBC_OK   "\r\nAES CBC Encryption/Decryption OK\r\n"
-#define MSG_ERROR    "\r\nAn error occurred during the cryptographic operations!\r\n"
 #define MSG_HELLO    "hello \r\n"
 
 /* Enums: */
 typedef enum{
-    ENCRYPT_NONE = 0,
-    ENCRYPT_ECB  = 1,
-    ENCRYPT_CBC  = 2,
-	ENCRYPT_CCM  = 3,
-	ENCRYPT_GCM  = 4,
-}EncryptionType_e;
+    TASK_NONE = 0,
+    ENCRYPT_CBC,
+    ENCRYPT_CCM,
+    ENCRYPT_GCM,
+    HASH_SHA256,
+    HASH_HMAC256,
+    RSA_ENCRYPT,
+    RSA_VERIFY,
+} TaskType_e;
 
 /* Structures: */
 typedef struct{
     uint8_t ucInitVector[MESSAGE_LENGTH];
     uint8_t ucEncMsg[MESSAGE_LENGTH];
-}Data_t;
+} Data_t;
 
 /* Global variables: */
 
@@ -125,179 +125,234 @@ custom_itoa(char *result, size_t bufsize, int number)
   memmove(res, tmp, (size_t)((result + bufsize) - tmp));
 }
 
-/* Benchmark Task */
-const uint8_t ucMsg[BLOCK_SIZE] = { 0 };
-uint8_t ucEncMsg[BLOCK_SIZE] = { 0 };
-uint8_t ucDecMsg[BLOCK_SIZE] = { 0 };
+/* Benchmark Tasks */
+static uint8_t ucMsg[BLOCK_SIZE] = { 0 };
+static uint8_t ucEncMsg[BLOCK_SIZE] = { 0 };
+static uint8_t ucDecMsg[BLOCK_SIZE] = { 0 };
+static uint32_t start_time, done_time;
+static uint8_t ucInitVector[MESSAGE_LENGTH] = {
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+};
+static uint8_t ucTag[AES_AUTH_TAG_SZ] = { 0 };
+static uint8_t ucAdd[AES_AUTH_TAG_SZ] = { 0 };
+static const uint8_t ucPlainKey[MESSAGE_LENGTH] = {
+		0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
+};
+static char result[38] = "Enc:           ms Dec:           ms\r\n";
+static char *p = NULL;
+
+static void benchNone()
+{
+	// is CBC deterministic?
+	status_t hsm_ret;
+	memset(ucMsg, 1, BLOCK_SIZE);
+	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
+	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucDecMsg, TIMEOUT_ENCRYPTION);
+	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+
+	bool ret = bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE);
+	if (ret) {
+		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyy\r\n", 5, TIMEOUT_ENCRYPTION);
+	} else {
+		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnn\r\n", 5, TIMEOUT_ENCRYPTION);
+	}
+
+	memset(ucMsg, 0, BLOCK_SIZE);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);
+}
+
+static void benchHsmAesCbc()
+{
+	int i;
+	status_t hsm_ret;
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"AES-CBC:\r\n", 10, TIMEOUT_ENCRYPTION);
+
+	// Encrypt
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+	}
+	done_time = current_time_ms();
+	p = &result[4];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// Decrypt
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_DecryptCBC(HSM_RAM_KEY, ucEncMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucDecMsg, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+//		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
+	}
+	done_time = current_time_ms();
+	p = &result[22];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
+}
+
+static void benchHsmAesCcm()
+{
+	int i;
+	status_t hsm_ret;
+	bool authStatus = false;
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"AES-CCM:\r\n", 10, TIMEOUT_ENCRYPTION);
+
+	// Encrypt
+//	status_t HSM_DRV_EncryptCCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
+//								const uint8_t *authData, uint32_t plainTextLen, const uint8_t *plainText,
+//								uint8_t *cipherText, uint32_t tagLen, uint8_t *tag, uint32_t timeout)
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_EncryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+				BLOCK_SIZE, ucMsg,
+				ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+	}
+	done_time = current_time_ms();
+	p = &result[4];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// Decrypt
+//	status_t HSM_DRV_DecryptCCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
+//								const uint8_t *authData, uint32_t cipherTextLen, const uint8_t *cipherText,
+//								uint8_t *decryptedText, uint32_t tagLen, const uint8_t *tag, bool *authStatus,
+//								uint32_t timeout)
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_DecryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+				BLOCK_SIZE, ucEncMsg,
+				ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		DEV_ASSERT(authStatus == true);
+//		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
+	}
+	done_time = current_time_ms();
+	p = &result[22];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
+}
+
+static void benchHsmAesGcm()
+{
+	int i;
+	status_t hsm_ret;
+	bool authStatus = false;
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"AES-GCM:\r\n", 10, TIMEOUT_ENCRYPTION);
+
+	// Encrypt
+//	status_t HSM_DRV_EncryptGCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
+//								const uint8_t *authData, uint32_t plainTextLen, const uint8_t *plainText,
+//								uint8_t *cipherText, uint32_t tagLen, uint8_t *tag, uint32_t timeout)
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_EncryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+				BLOCK_SIZE, ucMsg,
+				ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+	}
+	done_time = current_time_ms();
+	p = &result[4];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// Decrypt
+//	status_t HSM_DRV_DecryptGCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
+//								const uint8_t *authData, uint32_t cipherTextLen, const uint8_t *cipherText,
+//								uint8_t *decryptedText, uint32_t tagLen, const uint8_t *tag, bool *authStatus,
+//								uint32_t timeout)
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_DecryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+				BLOCK_SIZE, ucEncMsg,
+				ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		DEV_ASSERT(authStatus == true);
+//		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
+	}
+	done_time = current_time_ms();
+	p = &result[22];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
+}
+
+static void benchHsmSha256()
+{
+
+}
+
+static void benchHsmHmac256()
+{
+
+}
+
+static void benchHsmRsaEncrypt()
+{
+
+}
+
+static void benchHsmRsaVerify()
+{
+
+}
+
+typedef void (*TaskFunc)(void);
+static TaskFunc taskFuncs[] = {
+		benchNone, benchHsmAesCbc, benchHsmAesCcm, benchHsmAesGcm,
+		benchHsmSha256, benchHsmHmac256,
+		benchHsmRsaEncrypt, benchHsmRsaVerify
+};
 
 void hsmBenchMainLoopTask(void *pvParam)
 {
-	static char result[38] = "Enc:           ms Dec:           ms\r\n";
-	char *p = NULL;
-	int i = 0;
-	uint32_t start_time, done_time;
-    uint8_t ucInitVector[MESSAGE_LENGTH] = {
-    		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-    };
-    uint8_t ucTag[AES_AUTH_TAG_SZ] = { 0 };
-    uint8_t ucAdd[AES_AUTH_TAG_SZ] = { 0 };
-    bool authStatus = false;
-    static EncryptionType_e eEncType = ENCRYPT_NONE;
-
     /** Initialize HSM Driver: */
-    const uint8_t ucPlainKey[MESSAGE_LENGTH] = {
-    		0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
-			0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
-    };
-
 	status_t hsm_ret;
-	HSM_DRV_Init(&hsm1_State);
-	HSM_DRV_LoadPlainKey(ucPlainKey, TIMEOUT_ENCRYPTION);
+	hsm_ret = HSM_DRV_Init(&hsm1_State);
+	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+
+	hsm_ret = HSM_DRV_LoadPlainKey(ucPlainKey, TIMEOUT_ENCRYPTION);
+	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
 
 	do {
-		/* Every 'TASK0_DELAY' encrypt message */
-		vTaskDelay(TASK0_DELAY);
 
-        switch (eEncType)
-        {
-            case ENCRYPT_NONE:
-            	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);
-                eEncType = ENCRYPT_CBC;
-                break;
-            case ENCRYPT_CBC:
-            {
-            	// Encrypt
-            	start_time = current_time_ms();
-            	for (i = 0; i < NUM_BLOCKS; ++i)
-            	{
-            		hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
-            		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-            	}
-            	done_time = current_time_ms();
-            	p = &result[4];
-            	memset(p, ' ', 10);
-            	custom_itoa(p, 5, (done_time - start_time));
-            	while (*p) p++;
-				while (!(*p)) *(p++) = ' ';
+		for (int i = TASK_NONE; i <= RSA_VERIFY; ++i)
+		{
+			vTaskDelay(TASK_DELAY);
 
-				// Decrypt
-            	start_time = current_time_ms();
-            	for (i = 0; i < NUM_BLOCKS; ++i)
-            	{
-            		hsm_ret = HSM_DRV_DecryptCBC(HSM_RAM_KEY, ucEncMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucDecMsg, TIMEOUT_ENCRYPTION);
-            		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-//            		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
-            	}
-            	done_time = current_time_ms();
-            	p = &result[22];
-            	memset(p, ' ', 10);
-            	custom_itoa(p, 5, (done_time - start_time));
-            	while (*p) p++;
-				while (!(*p)) *(p++) = ' ';
+			taskFuncs[i]();
+		}
 
-            	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
-				eEncType = ENCRYPT_CCM;
-				break;
-            }
-            case ENCRYPT_CCM:
-            {
-            	// Encrypt
-//            	status_t HSM_DRV_EncryptCCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//            	                            const uint8_t *authData, uint32_t plainTextLen, const uint8_t *plainText,
-//            	                            uint8_t *cipherText, uint32_t tagLen, uint8_t *tag, uint32_t timeout)
-            	start_time = current_time_ms();
-            	for (i = 0; i < NUM_BLOCKS; ++i)
-            	{
-            		hsm_ret = HSM_DRV_EncryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-            				BLOCK_SIZE, ucMsg,
-							ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
-            		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-            	}
-            	done_time = current_time_ms();
-            	p = &result[4];
-            	memset(p, ' ', 10);
-            	custom_itoa(p, 5, (done_time - start_time));
-            	while (*p) p++;
-				while (!(*p)) *(p++) = ' ';
-
-				// Decrypt
-//				status_t HSM_DRV_DecryptCCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//				                            const uint8_t *authData, uint32_t cipherTextLen, const uint8_t *cipherText,
-//				                            uint8_t *decryptedText, uint32_t tagLen, const uint8_t *tag, bool *authStatus,
-//				                            uint32_t timeout)
-            	start_time = current_time_ms();
-            	for (i = 0; i < NUM_BLOCKS; ++i)
-            	{
-            		hsm_ret = HSM_DRV_DecryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-            				BLOCK_SIZE, ucEncMsg,
-							ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
-            		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-            		DEV_ASSERT(authStatus == true);
-//            		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
-            	}
-            	done_time = current_time_ms();
-            	p = &result[22];
-            	memset(p, ' ', 10);
-            	custom_itoa(p, 5, (done_time - start_time));
-            	while (*p) p++;
-				while (!(*p)) *(p++) = ' ';
-
-            	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
-				eEncType = ENCRYPT_GCM;
-				break;
-            }
-            case ENCRYPT_GCM:
-            {
-            	// Encrypt
-//            	status_t HSM_DRV_EncryptGCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//            	                            const uint8_t *authData, uint32_t plainTextLen, const uint8_t *plainText,
-//            	                            uint8_t *cipherText, uint32_t tagLen, uint8_t *tag, uint32_t timeout)
-            	start_time = current_time_ms();
-            	for (i = 0; i < NUM_BLOCKS; ++i)
-            	{
-            		hsm_ret = HSM_DRV_EncryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-            				BLOCK_SIZE, ucMsg,
-							ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
-            		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-            	}
-            	done_time = current_time_ms();
-            	p = &result[4];
-            	memset(p, ' ', 10);
-            	custom_itoa(p, 5, (done_time - start_time));
-            	while (*p) p++;
-				while (!(*p)) *(p++) = ' ';
-
-				// Decrypt
-//				status_t HSM_DRV_DecryptGCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//				                            const uint8_t *authData, uint32_t cipherTextLen, const uint8_t *cipherText,
-//				                            uint8_t *decryptedText, uint32_t tagLen, const uint8_t *tag, bool *authStatus,
-//				                            uint32_t timeout)
-            	start_time = current_time_ms();
-            	for (i = 0; i < NUM_BLOCKS; ++i)
-            	{
-            		hsm_ret = HSM_DRV_DecryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-            				BLOCK_SIZE, ucEncMsg,
-							ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
-            		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-            		DEV_ASSERT(authStatus == true);
-//            		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
-            	}
-            	done_time = current_time_ms();
-            	p = &result[22];
-            	memset(p, ' ', 10);
-            	custom_itoa(p, 5, (done_time - start_time));
-            	while (*p) p++;
-				while (!(*p)) *(p++) = ' ';
-
-            	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
-				eEncType = ENCRYPT_NONE;
-				break;
-            }
-            default:
-                /* Do nothing... */
-                break;
-        }
 	} while (1);
 }
 
