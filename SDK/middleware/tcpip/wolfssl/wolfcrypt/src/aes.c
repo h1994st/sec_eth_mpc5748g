@@ -3659,6 +3659,7 @@ enum {
     CTR_SZ   = 4
 };
 
+#if !defined(NXP_SDK_HSM) // -- by h1994st
 #if !defined(FREESCALE_LTC_AES_GCM)
 static INLINE void IncrementGcmCounter(byte* inOutCtr)
 {
@@ -3671,6 +3672,7 @@ static INLINE void IncrementGcmCounter(byte* inOutCtr)
     }
 }
 #endif /* !FREESCALE_LTC_AES_GCM */
+#endif /* !NXP_SDK_HSM */ // -- by h1994st
 
 #if defined(GCM_SMALL) || defined(GCM_TABLE)
 
@@ -3754,6 +3756,7 @@ int wc_AesGcmSetKey(Aes* aes, const byte* key, word32 len)
             return ret;
     #endif /* WOLFSSL_AESNI */
 
+#if !defined(NXP_SDK_HSM) // -- by h1994st
 #if !defined(FREESCALE_LTC_AES_GCM)
     if (ret == 0) {
         wc_AesEncrypt(aes, iv, aes->H);
@@ -3762,6 +3765,7 @@ int wc_AesGcmSetKey(Aes* aes, const byte* key, word32 len)
     #endif /* GCM_TABLE */
     }
 #endif /* FREESCALE_LTC_AES_GCM */
+#endif /* !NXP_SDK_HSM */ // -- by h1994st
 
 #if defined(WOLFSSL_XILINX_CRYPT)
     wc_AesGcmSetKey_ex(aes, key, len, XSECURE_CSU_AES_KEY_SRC_KUP);
@@ -7235,6 +7239,24 @@ int wc_AesGcmEncrypt(Aes* aes, byte* out, const byte* in, word32 sz,
     word32 keySize;
 #ifdef FREESCALE_LTC_AES_GCM
     status_t status;
+#elif defined(NXP_SDK_HSM) // -- by h1994st
+
+    /* HSM AES-GCM */
+    status_t status;
+    uint8_t* pKey;
+#ifdef LITTLE_ENDIAN_ORDER
+    word32 key[4];
+    ByteReverseWords(key, aes->key, 16);
+    pKey = (uint8_t*)key;
+#else
+    pKey = (uint8_t*)aes->key;
+#endif
+    status = HSM_DRV_LoadPlainKey(pKey, HSM_TIMEOUT);
+    if (status != STATUS_SUCCESS)
+    {
+        return WC_TIMEOUT_E;
+    }
+
 #else
     word32 blocks = sz / AES_BLOCK_SIZE;
     word32 partial = sz % AES_BLOCK_SIZE;
@@ -7277,6 +7299,13 @@ int wc_AesGcmEncrypt(Aes* aes, byte* out, const byte* in, word32 sz,
         authIn, authInSz, (byte*)aes->key, keySize, authTag, authTagSz);
 
     ret = (status == kStatus_Success) ? 0 : AES_GCM_AUTH_E;
+
+#elif defined(NXP_SDK_HSM) // -- by h1994st
+
+    /* HSM AES-GCM */
+    status = HSM_DRV_EncryptGCM(HSM_RAM_KEY, ivSz, iv,
+    		authInSz, authIn, sz, in, out, authTagSz, authTag, HSM_TIMEOUT);
+    ret = (status == STATUS_SUCCESS) ? 0 : WC_TIMEOUT_E;
 
 #else
 
@@ -7484,6 +7513,25 @@ int  wc_AesGcmDecrypt(Aes* aes, byte* out, const byte* in, word32 sz,
     word32 keySize;
 #ifdef FREESCALE_LTC_AES_GCM
     status_t status;
+#elif defined(NXP_SDK_HSM) // -- by h1994st
+
+    /* HSM AES-GCM */
+    status_t status;
+    uint8_t* pKey;
+    bool authStatus = false;
+#ifdef LITTLE_ENDIAN_ORDER
+    word32 key[4];
+    ByteReverseWords(key, aes->key, 16);
+    pKey = (uint8_t*)key;
+#else
+    pKey = (uint8_t*)aes->key;
+#endif
+    status = HSM_DRV_LoadPlainKey(pKey, HSM_TIMEOUT);
+    if (status != STATUS_SUCCESS)
+    {
+        return WC_TIMEOUT_E;
+    }
+
 #elif defined(STM32F2_CRYPTO) || defined(STM32F4_CRYPTO)
     #ifdef WOLFSSL_STM32_CUBEMX
         CRYP_HandleTypeDef hcryp;
@@ -7526,6 +7574,21 @@ int  wc_AesGcmDecrypt(Aes* aes, byte* out, const byte* in, word32 sz,
         authIn, authInSz, (byte*)aes->key, keySize, authTag, authTagSz);
 
     ret = (status == kStatus_Success) ? 0 : AES_GCM_AUTH_E;
+
+#elif defined(NXP_SDK_HSM) // -- by h1994st
+
+    /* HSM AES-GCM */
+    status = HSM_DRV_DecryptGCM(HSM_RAM_KEY, ivSz, iv,
+            authInSz, authIn, sz, in, out, authTagSz, authTag, &authStatus,
+            HSM_TIMEOUT);
+    if (status != STATUS_SUCCESS)
+    {
+        return WC_TIMEOUT_E;
+    }
+    if (!authStatus) {
+    	XMEMSET(out, 0, sz);
+    	return AES_GCM_AUTH_E;
+    }
 
 #elif defined(STM32F2_CRYPTO) || defined(STM32F4_CRYPTO)
 
@@ -7906,7 +7969,7 @@ int  wc_AesCcmDecrypt(Aes* aes, byte* out, const byte* in, word32 inSz,
         return WC_TIMEOUT_E;
     }
 
-    if (!HSM_GetAuthResult()) {
+    if (!authStatus) {
     	XMEMSET(out, 0, inSz);
     	return AES_CCM_AUTH_E;
     }
