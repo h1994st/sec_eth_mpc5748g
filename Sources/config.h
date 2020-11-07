@@ -10,7 +10,10 @@
 
 #define ST_BENCH_W_HSM			0 // HSM: enabled
 
-#define ST_BENCH_WOLFSSL		1 // HSM: disabled
+#define ST_BENCH_WOLFSSL		1
+#if ST_BENCH_WOLFSSL
+#define ST_NO_HSM // HSM: disabled
+#endif
 
 #define ST_TLS_APP				0 // HSM: enabled
 #if ST_TLS_APP

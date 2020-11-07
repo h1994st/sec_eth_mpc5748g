@@ -11,15 +11,18 @@
 /* User settings for wolfSSL */
 #include "config.h"
 
-#if ST_BENCH_WOLFSSL
+#ifdef ST_NO_HSM // without HSM, we need to define the random seed function
 #define CUSTOM_RAND_GENERATE_SEED customRandSeed
-#endif
+#endif /* ST_NO_HSM */
+
 #define HAVE_AESCCM
 #define HAVE_AESGCM
 #define HAVE_CHACHA
 #define HAVE_POLY1305
 #define HAVE_ONE_TIME_AUTH
 #define HAVE_ECC
+
+/* TLS 1.3 */
 //#define WOLFSSL_TLS13
 //#define HAVE_TLS_EXTENSIONS
 //#define HAVE_SUPPORTED_CURVES
