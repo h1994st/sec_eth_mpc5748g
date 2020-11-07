@@ -3,7 +3,7 @@
   <Header>
     <Name>sec_eth_mpc5748g</Name>
     <SavedBy>B19337</SavedBy>
-    <ModificationStamp>167</ModificationStamp>
+    <ModificationStamp>168</ModificationStamp>
     <Date>2017-03-07</Date>
     <IDE>Eclipse IDE</IDE>
     <PEversion>1.12.2.RT7_b1743-0713</PEversion>
@@ -14554,7 +14554,7 @@
         <ItemSymbol>ProjectComponentsCountChanged</ItemSymbol>
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
-        <Value>2</Value>
+        <Value>1</Value>
       </ItemState>
       <ItemState>
         <ItemSymbol>ModuleName_ADC</ItemSymbol>
@@ -16081,20 +16081,12 @@
         <ReadOnly>false</ReadOnly>
         <UserReadOnly>false</UserReadOnly>
         <Value>(string list)</Value>
-        <StrgList lines_count="13">
+        <StrgList lines_count="5">
           <Line>/* Additional settings can be defined in the property Settings &gt; User settings &gt; Definitions of the FreeRTOS component */</Line>
           <Line>#if defined(__GNUC__) &amp;&amp; !defined(__ASSEMBLER__)</Line>
           <Line>#include "device_registers.h"</Line>
           <Line>#include "devassert.h"</Line>
           <Line>#endif</Line>
-          <Line />
-          <Line>#define CUSTOM_RAND_GENERATE_SEED customRandSeed</Line>
-          <Line>#define HAVE_AESCCM</Line>
-          <Line>#define HAVE_AESGCM</Line>
-          <Line>#define HAVE_CHACHA</Line>
-          <Line>#define HAVE_POLY1305</Line>
-          <Line>#define HAVE_ONE_TIME_AUTH</Line>
-          <Line>#define HAVE_ECC</Line>
         </StrgList>
       </ItemState>
       <ItemState>

@@ -131,7 +131,7 @@ custom_itoa(char *result, size_t bufsize, int number)
 }
 
 /* Benchmark Tasks */
-static uint8_t ucMsg[BLOCK_SIZE + 1] = { 0 };
+static uint8_t ucMsg[BLOCK_SIZE] = { 0 };
 static uint8_t ucEncMsg[BLOCK_SIZE] = { 0 };
 static uint8_t ucDecMsg[BLOCK_SIZE] = { 0 };
 static uint32_t start_time, done_time;
@@ -152,55 +152,12 @@ static char *p = NULL;
 
 static void benchNone()
 {
-	// is CBC deterministic?
-	status_t hsm_ret;
-	memset(ucMsg, 1, BLOCK_SIZE + 1);
-	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
-	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucDecMsg, TIMEOUT_ENCRYPTION);
-	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-
-	bool ret = bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE);
-	if (ret) {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyy\r\n", 5, TIMEOUT_ENCRYPTION);
-	} else {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnn\r\n", 5, TIMEOUT_ENCRYPTION);
-	}
-
-	// does wolfSSL CBC work well? (wolfSSL CBC will check the address alignment)
-	Aes* enc = (Aes*)XMALLOC(sizeof(Aes), 0, 0);
-	int wc_ret = 0;
-	wc_ret = wc_AesInit(enc, NULL, INVALID_DEVID);
-	DEV_ASSERT(wc_ret == 0);
-
-	memset(ucEncMsg, 0, BLOCK_SIZE);
-	wc_ret = wc_AesSetKey(enc, (byte*)ucPlainKey, 16, (byte*)ucInitVector,
-			AES_ENCRYPTION);
-	DEV_ASSERT(wc_ret == 0);
-	wc_ret = wc_AesCbcEncrypt(enc, ucEncMsg, ucMsg + 1, BLOCK_SIZE);
-	DEV_ASSERT(wc_ret == 0);
-	DEV_ASSERT(bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE));
-
-	memset(ucDecMsg, 0, BLOCK_SIZE);
-	wc_ret = wc_AesSetKey(enc, (byte*)ucPlainKey, 16, (byte*)ucInitVector,
-			AES_ENCRYPTION);
-	DEV_ASSERT(wc_ret == 0);
-	wc_ret = wc_AesCbcEncrypt(enc, ucDecMsg, ucMsg, BLOCK_SIZE);
-	DEV_ASSERT(wc_ret == 0);
-
-	ret = bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE);
-	if (ret) {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyyy\r\n", 6, TIMEOUT_ENCRYPTION);
-	} else {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnnn\r\n", 6, TIMEOUT_ENCRYPTION);
-	}
-	XFREE(enc, 0, 0);
-
-	memset(ucMsg, 0, BLOCK_SIZE);
+	// Print hello message
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);
 }
 
-static void benchHsmAesCbc()
+#ifdef HAVE_AES_CBC
+static void benchAesCbc()
 {
 	int i;
 	status_t hsm_ret;
@@ -238,8 +195,10 @@ static void benchHsmAesCbc()
 
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 }
+#endif
 
-static void benchHsmAesCcm()
+#ifdef HAVE_AESCCM
+static void benchAesCcm()
 {
 	int i;
 	status_t hsm_ret;
@@ -290,8 +249,10 @@ static void benchHsmAesCcm()
 
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 }
+#endif
 
-static void benchHsmAesGcm()
+#ifdef HAVE_AESGCM
+static void benchAesGcm()
 {
 	int i;
 	status_t hsm_ret;
@@ -342,8 +303,9 @@ static void benchHsmAesGcm()
 
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 }
+#endif
 
-static void benchHsmSha256()
+static void benchSha256()
 {
 	int i;
 	status_t hsm_ret;
@@ -368,7 +330,7 @@ static void benchHsmSha256()
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
 }
 
-static void benchHsmHmac256()
+static void benchHmac256()
 {
 	int i;
 	status_t hsm_ret;
@@ -396,21 +358,30 @@ static void benchHsmHmac256()
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
 }
 
-static void benchHsmRsaEncrypt()
+static void benchRsaEncrypt()
 {
 
 }
 
-static void benchHsmRsaVerify()
+static void benchRsaVerify()
 {
 
 }
 
 typedef void (*TaskFunc)(void);
 static TaskFunc taskFuncs[] = {
-		benchNone, benchHsmAesCbc, benchHsmAesCcm, benchHsmAesGcm,
-		benchHsmSha256, benchHsmHmac256,
-		benchHsmRsaEncrypt, benchHsmRsaVerify
+		benchNone,
+#ifdef HAVE_AES_CBC
+		benchAesCbc,
+#endif
+#ifdef HAVE_AESCCM
+		benchAesCcm,
+#endif
+#ifdef HAVE_AESGCM
+		benchAesGcm,
+#endif
+		benchSha256, benchHmac256,
+		benchRsaEncrypt, benchRsaVerify
 };
 
 void wolfSSLBenchMainLoopTask(void *pvParam)

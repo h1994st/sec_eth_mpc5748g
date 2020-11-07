@@ -45,6 +45,7 @@
 
 volatile int exit_code = 0;
 
+#if ST_BENCH_WOLFSSL
 int customRandSeed(uint8_t* output, uint32_t sz);
 
 /* custom random seed function -- by h1994st */
@@ -56,6 +57,7 @@ int customRandSeed(uint8_t* output, uint32_t sz) {
 	}
 	return 0;
 }
+#endif
 
 int main(void) {
 
