@@ -27,6 +27,7 @@
 #define AES_AUTH_ADD_SZ     13
 #define AES_AUTH_TAG_SZ     16
 #define BENCH_CIPHER_ADD    AES_AUTH_TAG_SZ
+#define SHA256_SIZE         32
 
 /* Application defines: */
 #define TIMEOUT_ENCRYPTION    (1000U)
@@ -140,7 +141,9 @@ static const uint8_t ucPlainKey[MESSAGE_LENGTH] = {
 		0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
 		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
 };
+static uint8_t ucHash[SHA256_SIZE] = { 0 };
 static char result[38] = "Enc:           ms Dec:           ms\r\n";
+static char result2[] = "Duration:           ms\r\n";
 static char *p = NULL;
 
 static void benchNone()
@@ -160,7 +163,7 @@ static void benchNone()
 		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnn\r\n", 5, TIMEOUT_ENCRYPTION);
 	}
 
-	// does wolfSSL CBC work well?
+	// does wolfSSL CBC work well? (wolfSSL CBC will check the address alignment)
 	Aes* enc = (Aes*)XMALLOC(sizeof(Aes), 0, 0);
 	int wc_ret = 0;
 	wc_ret = wc_AesInit(enc, NULL, INVALID_DEVID);
@@ -229,7 +232,7 @@ static void benchHsmAesCbc()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 }
 
 static void benchHsmAesCcm()
@@ -281,7 +284,7 @@ static void benchHsmAesCcm()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 }
 
 static void benchHsmAesGcm()
@@ -333,17 +336,60 @@ static void benchHsmAesGcm()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, 38, TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 }
 
 static void benchHsmSha256()
 {
+	int i;
+	status_t hsm_ret;
 
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"SHA256:\r\n", 9, TIMEOUT_ENCRYPTION);
+
+	// SHA256
+//	status_t HSM_DRV_HashSHA256(uint32_t msgLen, const uint8_t *msg, uint8_t *hash, uint32_t timeout)
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_HashSHA256(BLOCK_SIZE, ucMsg, ucHash, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+	}
+	done_time = current_time_ms();
+	p = &result2[9];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
 }
 
 static void benchHsmHmac256()
 {
+	int i;
+	status_t hsm_ret;
+	uint32_t hash_len = SHA256_SIZE;
 
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"HMAC256:\r\n", 10, TIMEOUT_ENCRYPTION);
+
+	// HMAC256
+//	status_t HSM_DRV_HashHMAC256(hsm_key_id_t keyId, uint32_t msgLen, const uint8_t *msg, uint32_t *hashLen,
+//	                             uint8_t *hash, uint32_t timeout)
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_BLOCKS; ++i)
+	{
+		hsm_ret = HSM_DRV_HashHMAC256(HSM_HMAC_KEY1, BLOCK_SIZE, ucMsg, &hash_len, ucHash, TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		DEV_ASSERT(hash_len == SHA256_SIZE);
+	}
+	done_time = current_time_ms();
+	p = &result2[9];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
 }
 
 static void benchHsmRsaEncrypt()
@@ -370,8 +416,13 @@ void hsmBenchMainLoopTask(void *pvParam)
 	hsm_ret = HSM_DRV_Init(&hsm1_State);
 	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
 
+	// Load 128-bit key
 	hsm_ret = HSM_DRV_LoadPlainKey(ucPlainKey, TIMEOUT_ENCRYPTION);
 	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+
+	// Generate HMAC key
+	hsm_random_kdf_t random_kdf = { .randomKeyId = HSM_HMAC_KEY1, .randomKeySize = 32 };
+	hsm_ret = HSM_DRV_GenerateExtendedRamKeys(HSM_HMAC_KEY1, RANDOM_KEY, &random_kdf, TIMEOUT_ENCRYPTION);
 
 	do {
 

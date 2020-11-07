@@ -74,6 +74,7 @@
 									<listOptionValue builtIn="false" value="WOLFSSL_DH_CONST"/>
 									<listOptionValue builtIn="false" value="HAVE_DH"/>
 									<listOptionValue builtIn="false" value="NO_INLINE"/>
+									<listOptionValue builtIn="false" value="WOLFSSL_USER_SETTINGS"/>
 								</option>
 								<option id="com.freescale.s32ds.cross.gnu.e200.tool.c.compiler.option.target.family.199131734" name="Target Processor" superClass="com.freescale.s32ds.cross.gnu.e200.tool.c.compiler.option.target.family" useByScannerDiscovery="false" value="com.freescale.s32ds.cross.gnu.e200.tool.c.compiler.option.target.family.e200z4" valueType="enumerated"/>
 								<option id="com.freescale.s32ds.cross.gnu.e200.tool.c.compiler.option.target.sysroot.146762822" name="Sysroot" superClass="com.freescale.s32ds.cross.gnu.e200.tool.c.compiler.option.target.sysroot" useByScannerDiscovery="false" value="--sysroot=&quot;${VLE_NEWLIB_DIR}/newlib&quot;" valueType="string"/>

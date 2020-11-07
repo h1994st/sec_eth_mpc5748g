@@ -33,9 +33,9 @@
 #elif ST_BENCH_W_HSM
 #include "hsmBenchTask.h"
 #define mainLoopTask hsmBenchMainLoopTask
-#elif ST_BENCH_WOLFSSL_HSM
-#include "wolfSSLHSMBenchTask.h"
-#define mainLoopTask wolfSSLHSMBenchMainLoopTask
+#elif ST_BENCH_WOLFSSL
+#include "wolfSSLBenchTask.h"
+#define mainLoopTask wolfSSLBenchMainLoopTask
 #else
 #warning "No available tasks!"
 #endif /* ST_TLS_APP */
