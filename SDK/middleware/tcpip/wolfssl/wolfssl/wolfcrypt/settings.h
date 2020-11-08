@@ -992,10 +992,10 @@ extern void uITRON4_free(void *p) ;
     #define HSM_TIMEOUT 100
 
 #if (defined(CPU_MPC5748G) || defined(CPU_MPC5746C))
-#ifndef ST_NO_HSM // -- by h1994st
+#if ST_HSM // -- by h1994st
     #define NXP_SDK_HSM  // -- by h1994st
 	#define NXP_SDK_HSM_ALIGN 4  // 32 bits -- by h1994st
-#endif /* ST_NO_HSM */ // -- by h1994st
+#endif /* ST_HSM */ // -- by h1994st
     #define NXP_SDK_PIT
     #define BIG_ENDIAN_ORDER
 #endif /* defined(CPU_MPC5748G) || defined(CPU_MPC5746C) */

@@ -17,8 +17,15 @@
 #include "task.h"
 #endif /* defined(USING_OS_FREERTOS) */
 
+#include "lwip/opt.h"
+#include "lwip/sys.h"
+#include "lwip/sockets.h"
+#include "lwip/mem.h"
+
 #include <string.h>
 #include <wolfssl/wolfcrypt/aes.h>
+#include <wolfssl/wolfcrypt/sha256.h>
+#include <wolfssl/wolfcrypt/hmac.h>
 
 /* FreeRTOS defines: */
 #define TASK_DELAY         ((TickType_t)100 / portTICK_PERIOD_MS)
@@ -41,9 +48,15 @@
 /* Enums: */
 typedef enum{
     TASK_NONE = 0,
+#ifdef HAVE_AES_CBC
     ENCRYPT_CBC,
+#endif
+#ifdef HAVE_AESCCM
     ENCRYPT_CCM,
+#endif
+#ifdef HAVE_AESGCM
     ENCRYPT_GCM,
+#endif
     HASH_SHA256,
     HASH_HMAC256,
     RSA_ENCRYPT,
@@ -131,6 +144,7 @@ custom_itoa(char *result, size_t bufsize, int number)
 }
 
 /* Benchmark Tasks */
+static Aes* enc = NULL;
 static uint8_t ucMsg[BLOCK_SIZE] = { 0 };
 static uint8_t ucEncMsg[BLOCK_SIZE] = { 0 };
 static uint8_t ucDecMsg[BLOCK_SIZE] = { 0 };
@@ -146,6 +160,8 @@ static const uint8_t ucPlainKey[MESSAGE_LENGTH] = {
 		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
 };
 static uint8_t ucHash[SHA256_SIZE] = { 0 };
+static Sha256 wcHash;
+static Hmac wcHmac;
 static char result[38] = "Enc:           ms Dec:           ms\r\n";
 static char result2[] = "Duration:           ms\r\n";
 static char *p = NULL;
@@ -153,23 +169,37 @@ static char *p = NULL;
 static void benchNone()
 {
 	// Print hello message
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);
 }
 
 #ifdef HAVE_AES_CBC
 static void benchAesCbc()
 {
 	int i;
-	status_t hsm_ret;
+	int ret = 0;
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"AES-CBC:\r\n", 10, TIMEOUT_ENCRYPTION);
+	memset(ucMsg, 0, BLOCK_SIZE);
+	memset(ucEncMsg, 0, BLOCK_SIZE);
+	memset(ucDecMsg, 0, BLOCK_SIZE);
+	memset(enc, 0, sizeof(Aes));
+	ret = wc_AesInit(enc, NULL, INVALID_DEVID);
+	LWIP_ASSERT("ws_AesInit() failed", ret == 0);
+
+	/* init keys */
+	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+			(byte*) ucInitVector, AES_ENCRYPTION);
+	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)"AES-CBC:\r\n", 10, TIMEOUT_ENCRYPTION);
 
 	// Encrypt
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		ret = wc_AesCbcEncrypt(enc, ucEncMsg, ucMsg, BLOCK_SIZE);
+		LWIP_ASSERT("ws_AesCbcEncrypt() failed", ret == 0);
 	}
 	done_time = current_time_ms();
 	p = &result[4];
@@ -178,12 +208,17 @@ static void benchAesCbc()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
+	/* init keys */
+	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+			(byte*) ucInitVector, AES_ENCRYPTION);
+	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
+
 	// Decrypt
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_DecryptCBC(HSM_RAM_KEY, ucEncMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucDecMsg, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		ret = wc_AesCbcDecrypt(enc, ucDecMsg, ucEncMsg, BLOCK_SIZE);
+		LWIP_ASSERT("ws_AesCbcDecrypt() failed", ret == 0);
 //		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
 	}
 	done_time = current_time_ms();
@@ -193,7 +228,10 @@ static void benchAesCbc()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
+
+	wc_AesFree(enc);
 }
 #endif
 
@@ -201,53 +239,65 @@ static void benchAesCbc()
 static void benchAesCcm()
 {
 	int i;
-	status_t hsm_ret;
-	bool authStatus = false;
+	int ret = 0;
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"AES-CCM:\r\n", 10, TIMEOUT_ENCRYPTION);
+	memset(ucMsg, 0, BLOCK_SIZE);
+	memset(ucEncMsg, 0, BLOCK_SIZE);
+	memset(ucDecMsg, 0, BLOCK_SIZE);
+	memset(enc, 0, sizeof(Aes));
+	ret = wc_AesInit(enc, NULL, INVALID_DEVID);
+	LWIP_ASSERT("ws_AesInit() failed", ret == 0);
+
+	/* init keys */
+	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+			(byte*) ucInitVector, AES_ENCRYPTION);
+	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)"AES-CCM:\r\n", 10, TIMEOUT_ENCRYPTION);
 
 	// Encrypt
-//	status_t HSM_DRV_EncryptCCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//								const uint8_t *authData, uint32_t plainTextLen, const uint8_t *plainText,
-//								uint8_t *cipherText, uint32_t tagLen, uint8_t *tag, uint32_t timeout)
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_EncryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-				BLOCK_SIZE, ucMsg,
-				ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		ret = wc_AesCcmEncrypt(enc, ucEncMsg, ucMsg, BLOCK_SIZE,
+				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
+				AES_AUTH_ADD_SZ);
+		LWIP_ASSERT("ws_AesCbcEncrypt() failed", ret == 0);
 	}
 	done_time = current_time_ms();
 	p = &result[4];
 	memset(p, ' ', 10);
-	custom_itoa(p, 5, (done_time - start_time));
+	custom_itoa(p, 7, (done_time - start_time));
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
+	/* init keys */
+	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+			(byte*) ucInitVector, AES_ENCRYPTION);
+	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
+
 	// Decrypt
-//	status_t HSM_DRV_DecryptCCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//								const uint8_t *authData, uint32_t cipherTextLen, const uint8_t *cipherText,
-//								uint8_t *decryptedText, uint32_t tagLen, const uint8_t *tag, bool *authStatus,
-//								uint32_t timeout)
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_DecryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-				BLOCK_SIZE, ucEncMsg,
-				ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-		DEV_ASSERT(authStatus == true);
+		ret = wc_AesCcmDecrypt(enc, ucDecMsg, ucEncMsg, BLOCK_SIZE,
+				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
+				AES_AUTH_ADD_SZ);
+		LWIP_ASSERT("ws_AesCbcDecrypt() failed", ret == 0);
 //		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
 	}
 	done_time = current_time_ms();
 	p = &result[22];
 	memset(p, ' ', 10);
-	custom_itoa(p, 5, (done_time - start_time));
+	custom_itoa(p, 7, (done_time - start_time));
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
+
+	wc_AesFree(enc);
 }
 #endif
 
@@ -255,22 +305,31 @@ static void benchAesCcm()
 static void benchAesGcm()
 {
 	int i;
-	status_t hsm_ret;
-	bool authStatus = false;
+	int ret = 0;
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"AES-GCM:\r\n", 10, TIMEOUT_ENCRYPTION);
+	memset(ucMsg, 0, BLOCK_SIZE);
+	memset(ucEncMsg, 0, BLOCK_SIZE);
+	memset(ucDecMsg, 0, BLOCK_SIZE);
+	memset(enc, 0, sizeof(Aes));
+	ret = wc_AesInit(enc, NULL, INVALID_DEVID);
+	LWIP_ASSERT("ws_AesInit() failed", ret == 0);
+
+	/* init keys */
+	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+			(byte*) ucInitVector, AES_ENCRYPTION);
+	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)"AES-GCM:\r\n", 10, TIMEOUT_ENCRYPTION);
 
 	// Encrypt
-//	status_t HSM_DRV_EncryptGCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//								const uint8_t *authData, uint32_t plainTextLen, const uint8_t *plainText,
-//								uint8_t *cipherText, uint32_t tagLen, uint8_t *tag, uint32_t timeout)
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_EncryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-				BLOCK_SIZE, ucMsg,
-				ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		ret = wc_AesGcmEncrypt(enc, ucEncMsg, ucMsg, BLOCK_SIZE,
+				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
+				AES_AUTH_ADD_SZ);
+		LWIP_ASSERT("ws_AesCbcEncrypt() failed", ret == 0);
 	}
 	done_time = current_time_ms();
 	p = &result[4];
@@ -279,19 +338,19 @@ static void benchAesGcm()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
+	/* init keys */
+	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+			(byte*) ucInitVector, AES_ENCRYPTION);
+	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
+
 	// Decrypt
-//	status_t HSM_DRV_DecryptGCM(hsm_key_id_t keyId, uint32_t ivLen, const uint8_t *iv, uint32_t authDataLen,
-//								const uint8_t *authData, uint32_t cipherTextLen, const uint8_t *cipherText,
-//								uint8_t *decryptedText, uint32_t tagLen, const uint8_t *tag, bool *authStatus,
-//								uint32_t timeout)
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_DecryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-				BLOCK_SIZE, ucEncMsg,
-				ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-		DEV_ASSERT(authStatus == true);
+		ret = wc_AesGcmDecrypt(enc, ucDecMsg, ucEncMsg, BLOCK_SIZE,
+				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
+				AES_AUTH_ADD_SZ);
+		LWIP_ASSERT("ws_AesCbcDecrypt() failed", ret == 0);
 //		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
 	}
 	done_time = current_time_ms();
@@ -301,24 +360,34 @@ static void benchAesGcm()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
+
+	wc_AesFree(enc);
 }
 #endif
 
 static void benchSha256()
 {
 	int i;
-	status_t hsm_ret;
+	int ret = 0;
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"SHA256:\r\n", 9, TIMEOUT_ENCRYPTION);
+	memset(&wcHash, 0, sizeof(wcHash));
+	ret = wc_InitSha256(&wcHash);
+	LWIP_ASSERT("wc_InitSha256() failed", ret == 0);
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)"SHA256:\r\n", 9, TIMEOUT_ENCRYPTION);
 
 	// SHA256
-//	status_t HSM_DRV_HashSHA256(uint32_t msgLen, const uint8_t *msg, uint8_t *hash, uint32_t timeout)
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_HashSHA256(BLOCK_SIZE, ucMsg, ucHash, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+		ret = wc_Sha256Update(&wcHash, ucMsg, BLOCK_SIZE);
+		LWIP_ASSERT("wc_Sha256Update() failed", ret == 0);
+
+		ret = wc_Sha256Final(&wcHash, ucHash);
+		LWIP_ASSERT("wc_Sha256Final() failed", ret == 0);
 	}
 	done_time = current_time_ms();
 	p = &result2[9];
@@ -327,26 +396,33 @@ static void benchSha256()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
 }
 
 static void benchHmac256()
 {
 	int i;
-	status_t hsm_ret;
-	uint32_t hash_len = SHA256_SIZE;
+	int ret = 0;
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"HMAC256:\r\n", 10, TIMEOUT_ENCRYPTION);
+	memset(&wcHmac, 0, sizeof(wcHmac));
+	ret = wc_HmacInit(&wcHmac, NULL, INVALID_DEVID);
+	LWIP_ASSERT("wc_HmacInit() failed", ret == 0);
+	ret = wc_HmacSetKey(&wcHmac, SHA256, ucPlainKey, sizeof(ucPlainKey));
+	LWIP_ASSERT("wc_HmacSetKey() failed", ret == 0);
+
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)"HMAC256:\r\n", 10, TIMEOUT_ENCRYPTION);
 
 	// HMAC256
-//	status_t HSM_DRV_HashHMAC256(hsm_key_id_t keyId, uint32_t msgLen, const uint8_t *msg, uint32_t *hashLen,
-//	                             uint8_t *hash, uint32_t timeout)
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_HashHMAC256(HSM_HMAC_KEY1, BLOCK_SIZE, ucMsg, &hash_len, ucHash, TIMEOUT_ENCRYPTION);
-		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-		DEV_ASSERT(hash_len == SHA256_SIZE);
+		ret = wc_HmacUpdate(&wcHmac, ucMsg, BLOCK_SIZE);
+		LWIP_ASSERT("wc_HmacUpdate() failed", ret == 0);
+
+		ret = wc_HmacFinal(&wcHmac, ucHash);
+		LWIP_ASSERT("wc_Sha256Final() failed", ret == 0);
 	}
 	done_time = current_time_ms();
 	p = &result2[9];
@@ -355,7 +431,8 @@ static void benchHmac256()
 	while (*p) p++;
 	while (!(*p)) *(p++) = ' ';
 
-	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
+	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
+			(uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
 }
 
 static void benchRsaEncrypt()
@@ -386,6 +463,7 @@ static TaskFunc taskFuncs[] = {
 
 void wolfSSLBenchMainLoopTask(void *pvParam)
 {
+	enc = (Aes*)XMALLOC(sizeof(Aes), 0, 0);
 	do {
 
 		for (int i = TASK_NONE; i <= RSA_VERIFY; ++i)
@@ -396,6 +474,7 @@ void wolfSSLBenchMainLoopTask(void *pvParam)
 		}
 
 	} while (1);
+	XFREE(enc, 0, 0);
 }
 
 #endif /* ST_BENCH_WOLFSSL */

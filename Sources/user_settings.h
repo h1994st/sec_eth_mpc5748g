@@ -11,9 +11,9 @@
 /* User settings for wolfSSL */
 #include "config.h"
 
-#ifdef ST_NO_HSM // without HSM, we need to define the random seed function
+#if !ST_HSM // without HSM, we need to define the random seed function
 #define CUSTOM_RAND_GENERATE_SEED customRandSeed
-#endif /* ST_NO_HSM */
+#endif /* !ST_HSM */
 
 #define HAVE_AESCCM
 #define HAVE_AESGCM

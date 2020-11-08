@@ -45,9 +45,7 @@
 
 volatile int exit_code = 0;
 
-#if ST_BENCH_WOLFSSL
-int customRandSeed(uint8_t* output, uint32_t sz);
-
+#if !ST_HSM // without HSM, we need to define the random seed function
 /* custom random seed function -- by h1994st */
 int customRandSeed(uint8_t* output, uint32_t sz) {
 	uint32_t i;
@@ -57,7 +55,7 @@ int customRandSeed(uint8_t* output, uint32_t sz) {
 	}
 	return 0;
 }
-#endif
+#endif /* !ST_HSM */
 
 int main(void) {
 
