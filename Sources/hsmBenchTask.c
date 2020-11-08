@@ -15,6 +15,7 @@
 
 #include <string.h>
 #include <wolfssl/wolfcrypt/aes.h>
+#include <wolfssl/wolfcrypt/sha256.h>
 
 /* FreeRTOS defines: */
 #define TASK_DELAY         ((TickType_t)100 / portTICK_PERIOD_MS)
@@ -142,14 +143,17 @@ static const uint8_t ucPlainKey[MESSAGE_LENGTH] = {
 		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
 };
 static uint8_t ucHash[SHA256_SIZE] = { 0 };
+static uint8_t ucHash2[SHA256_SIZE] = { 0 };
 static char result[38] = "Enc:           ms Dec:           ms\r\n";
 static char result2[] = "Duration:           ms\r\n";
 static char *p = NULL;
 
 static void benchNone()
 {
-	// is CBC deterministic?
+	int wc_ret = 0;
 	status_t hsm_ret;
+
+	// is CBC deterministic?
 	memset(ucMsg, 1, BLOCK_SIZE + 1);
 	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
 	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
@@ -165,7 +169,6 @@ static void benchNone()
 
 	// does wolfSSL CBC work well? (wolfSSL CBC will check the address alignment)
 	Aes* enc = (Aes*)XMALLOC(sizeof(Aes), 0, 0);
-	int wc_ret = 0;
 	wc_ret = wc_AesInit(enc, NULL, INVALID_DEVID);
 	DEV_ASSERT(wc_ret == 0);
 
@@ -192,7 +195,31 @@ static void benchNone()
 	}
 	XFREE(enc, 0, 0);
 
+	// do both SHA256 output the same results?
+	Sha256 *wcHash = (Sha256*)XMALLOC(sizeof(Sha256), 0, 0);
+	wc_ret = wc_InitSha256(wcHash);
+	DEV_ASSERT(wc_ret == 0);
+	wc_ret = wc_Sha256Update(wcHash, ucMsg, BLOCK_SIZE);
+	DEV_ASSERT(wc_ret == 0);
+	wc_ret = wc_Sha256Final(wcHash, ucHash);
+	DEV_ASSERT(wc_ret == 0);
+
+	hsm_ret = HSM_DRV_HashSHA256(BLOCK_SIZE, ucMsg, ucHash2, TIMEOUT_ENCRYPTION);
+	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+
+	ret = bufferCompare(ucHash, ucHash2, SHA256_SIZE);
+	if (ret) {
+		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyyyy\r\n", 7, TIMEOUT_ENCRYPTION);
+	} else {
+		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnnnn\r\n", 7, TIMEOUT_ENCRYPTION);
+	}
+	XFREE(wcHash, 0, 0);
+
 	memset(ucMsg, 0, BLOCK_SIZE);
+	memset(ucEncMsg, 0, BLOCK_SIZE);
+	memset(ucDecMsg, 0, BLOCK_SIZE);
+	memset(ucHash, 0, SHA256_SIZE);
+	memset(ucHash2, 0, SHA256_SIZE);
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);
 }
 
