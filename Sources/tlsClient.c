@@ -43,13 +43,19 @@
 
 #include "osif.h"
 
+#include <wolfssl/wolfcrypt/error-crypt.h>
+
 #define MAX_SERV                 5         /* Maximum number of services. Don't need too many */
 
 #define socket_client_thread_STACKSIZE configMINIMAL_STACK_SIZE
 
 #define PORT   11111
 
-char buf[80];
+#define BUFFER_SIZE 80
+char buf[BUFFER_SIZE];
+
+#define MSG_QUESTION "Send data (Y/n): "
+#define MSG_TOSERVER "Hello, server!"
 
 struct servercb {
 	int socket;
@@ -57,18 +63,19 @@ struct servercb {
 	struct sockaddr_storage srvaddr;
 	socklen_t srvlen;
 };
+static struct servercb srvcb;
 
 /**************************************************************
  * void close_socket(struct servercb *p_servercb)
  *
  * Close the socket and free this servercb.
  **************************************************************/
-static void close_socket(struct servercb *p_servercb) {
+static void close_socket() {
 	/* Either an error or tcp connection closed on other
 	 * end. Close here */
-	wolfSSL_free(p_servercb->ssl);
-	close(p_servercb->socket);
-	mem_free(p_servercb);
+	wolfSSL_free(srvcb.ssl);
+	close(srvcb.socket);
+	memset(&srvcb, 0, sizeof(srvcb));
 }
 
 /* This is a helper function that blocks until the IP configuration is complete */
@@ -88,17 +95,13 @@ static inline void wait_for_ip(void) {
  * server.
  **************************************************************/
 static void socket_client_thread(void *arg) {
-	int connectfd;
 #if LWIP_IPV6
 	struct sockaddr_in6 socket_saddr;
 #else /* LWIP_IPV6 */
 	struct sockaddr_in socket_saddr;
 #endif /* LWIP_IPV6 */
-	fd_set readset;
-	int i, maxfdp1;
 	int ret;
 	WOLFSSL_CTX* ctx;
-	struct servercb *p_servercb;
 	LWIP_UNUSED_ARG(arg);
 
 	wait_for_ip();
@@ -106,23 +109,6 @@ static void socket_client_thread(void *arg) {
 	/* Initialize WOLFSSL */
 	ret = wolfSSL_Init();
 	LWIP_ASSERT("wolfSSL_Init() failed", ret == SSL_SUCCESS);
-
-	memset(&socket_saddr, 0, sizeof(socket_saddr));
-#if LWIP_IPV6
-	/* First acquire our socket for the connection */
-	connectfd = socket(AF_INET6, SOCK_STREAM, 0);
-	socket_saddr.sin6_family = AF_INET6;
-	socket_saddr.sin6_addr = in6addr_any;
-	socket_saddr.sin6_port = lwip_htons(PORT); /* echo server port */
-#else /* LWIP_IPV6 */
-	/* First acquire our socket for the connection */
-	connectfd = socket(AF_INET, SOCK_STREAM, 0);
-	socket_saddr.sin_family = AF_INET;
-	socket_saddr.sin_addr.s_addr = PP_HTONL(INADDR_ANY);
-	socket_saddr.sin_port = lwip_htons(PORT); /* echo server port */
-#endif /* LWIP_IPV6 */
-
-	LWIP_ASSERT("socket_client_thread(): Socket create failed.", listenfd >= 0);
 
 	/* Create and initialize CTX */
 	WOLFSSL_METHOD* method_instance = wolfSSLv23_server_method();
@@ -175,96 +161,67 @@ static void socket_client_thread(void *arg) {
 	LWIP_ASSERT("wolfSSL_CTX_use_PrivateKey_buffer() failed",
 			ret == SSL_SUCCESS);
 
-	if (bind(listenfd, (struct sockaddr * ) &socket_saddr, sizeof(socket_saddr))
-			== -1) {
-		LWIP_ASSERT("socket_client_thread(): Socket bind failed.", 0);
-	}
+	while (1) {
+		/* Ask user */
+		printData(MSG_QUESTION, strlen(MSG_QUESTION));
+		getData(buf, 1);
+		memset(buf, 0, BUFFER_SIZE);
 
-	/* Put socket into listening mode */
-	if (listen(listenfd, MAX_SERV) == -1) {
-		LWIP_ASSERT("socket_client_thread(): Listen failed.", 0);
-	}
+		memset(&socket_saddr, 0, sizeof(socket_saddr));
+#if LWIP_IPV6
+		/* First acquire our socket for the connection */
+		connectfd = socket(AF_INET6, SOCK_STREAM, 0);
+		socket_saddr.sin6_family = AF_INET6;
+		socket_saddr.sin6_addr = in6addr_any;
+		socket_saddr.sin6_port = lwip_htons(PORT); /* echo server port */
+#else /* LWIP_IPV6 */
+		/* First acquire our socket for the connection */
+		srvcb.socket = socket(AF_INET, SOCK_STREAM, 0);
+		socket_saddr.sin_family = AF_INET;
+		socket_saddr.sin_addr.s_addr = PP_HTONL(LWIP_MAKEU32(192, 168, 1, 100));
+		socket_saddr.sin_port = lwip_htons(PORT); /* echo server port */
+#endif /* LWIP_IPV6 */
+		LWIP_ASSERT("socket_client_thread(): Socket create failed.",
+				srvcb.socket >= 0);
 
-	/* Wait forever for network input: This could be connections or data */
-	for (;;) {
-		maxfdp1 = listenfd + 1;
+		/* Put socket into connecting mode */
+		if (connect(srvcb.socket, (struct sockaddr * ) &socket_saddr,
+				sizeof(socket_saddr)) == -1) {
+			LWIP_ASSERT("socket_client_thread(): Connect failed.", 0);
+		}
+		srvcb.ssl = wolfSSL_new(ctx);
+		LWIP_ASSERT("wolfSSL_new() failed.", srvcb.ssl != NULL);
+		wolfSSL_set_fd(srvcb.ssl, srvcb.socket);
 
-		/* Determine what sockets need to be in readset */
-		FD_ZERO(&readset);
-		FD_SET(listenfd, &readset);
-		for (p_clientcb = clientcb_list; p_clientcb;
-				p_clientcb = p_clientcb->next) {
-			if (maxfdp1 < p_clientcb->socket + 1) {
-				maxfdp1 = p_clientcb->socket + 1;
+		/* Send data */
+		int err;
+		do {
+			err = 0;
+			ret = wolfSSL_write(srvcb.ssl, MSG_TOSERVER, strlen(MSG_TOSERVER));
+			if (ret <= 0) {
+				err = wolfSSL_get_error(srvcb.ssl, 0);
 			}
-			FD_SET(p_clientcb->socket, &readset);
-		}
+		} while (err == WC_PENDING_E);
+		LWIP_ASSERT("wolfSSL_write() failed.", ret == strlen(MSG_TOSERVER));
 
-		/* Wait for data or a new connection */
-		i = select(maxfdp1, &readset, 0, 0, 0);
-
-		if (i == 0) {
-			continue;
-		}
-		/* At least one descriptor is ready */
-		if (FD_ISSET(listenfd, &readset)) {
-			/* We have a new connection request!!! */
-			/* Lets create a new control block */
-			p_clientcb = (struct clientcb *) mem_malloc(
-					sizeof(struct clientcb));
-			if (p_clientcb) {
-				p_clientcb->socket = accept(listenfd,
-						(struct sockaddr * ) &p_clientcb->cliaddr,
-						&p_clientcb->clilen);
-				if (p_clientcb->socket < 0) {
-					mem_free(p_clientcb);
-				} else {
-					/* Keep this tecb in our list */
-					p_clientcb->ssl = wolfSSL_new(ctx);
-					LWIP_ASSERT("wolfSSL_new() failed.",
-							p_clientcb->ssl != NULL);
-					wolfSSL_set_fd(p_clientcb->ssl, p_clientcb->socket);
-					p_clientcb->next = clientcb_list;
-					clientcb_list = p_clientcb;
-				}
-			} else {
-				/* No memory to accept connection. Just accept and then close */
-				int sock;
-				struct sockaddr cliaddr;
-				socklen_t clilen;
-
-				sock = accept(listenfd, &cliaddr, &clilen);
-				if (sock >= 0) {
-					close(sock);
-				}
+		/* Wait for data from the server*/
+		do {
+			err = 0;
+			ret = wolfSSL_read(srvcb.ssl, buf, BUFFER_SIZE - 1);
+			if (ret <= 0) {
+				err = wolfSSL_get_error(srvcb.ssl, 0);
 			}
+		} while (err == WC_PENDING_E || err == SSL_ERROR_WANT_READ);
+		if (ret > 0) {
+			printData(buf, ret);
+			printData("\r\n", 2);
 		}
-		/* Go through list of connected clients and process data */
-		for (p_clientcb = clientcb_list; p_clientcb;
-				p_clientcb = p_clientcb->next) {
-			if (FD_ISSET(p_clientcb->socket, &readset)) {
-				/* This socket is ready for reading. This could be because someone typed
-				 * some characters or it could be because the socket is now closed. Try reading
-				 * some data to see. */
-				int readcount;
-				readcount = wolfSSL_read(p_clientcb->ssl, &buf,
-						sizeof(buf) - 1);
-				if (readcount <= 0) {
-					close_socket(p_clientcb);
-					break;
-				}
-				buf[readcount] = 0;
-				if (wolfSSL_write(p_clientcb->ssl, buf, strlen(buf)) < 0) {
-					close_socket(p_clientcb);
-					break;
-				}
-			}
-		}
+
+		close_socket();
 	}
 
 	wolfSSL_CTX_free(ctx);
 	wolfSSL_Cleanup();
-	close(listenfd);
 }
 
 void tlsClientInit(void) {
