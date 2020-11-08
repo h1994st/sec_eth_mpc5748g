@@ -54,8 +54,6 @@
 /* network interfaces global variables */
 struct netif networkInterfaces[ETHIF_NUMBER];
 
-#include "tlsServer.h"
-
 /* This function initializes all network interfaces
  * Implements enetif_init_Activity
  */

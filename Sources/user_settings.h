@@ -23,11 +23,13 @@
 #define HAVE_ECC
 
 /* TLS 1.3 */
-//#define WOLFSSL_TLS13
-//#define HAVE_TLS_EXTENSIONS
-//#define HAVE_SUPPORTED_CURVES
-//#define HAVE_EXTENDED_MASTER
-//#define HAVE_HKDF
-//#define WC_RSA_PSS
+#if (ST_TLS_VERSION == 0x013)
+#define WOLFSSL_TLS13
+#define HAVE_TLS_EXTENSIONS
+#define HAVE_SUPPORTED_CURVES
+#define HAVE_EXTENDED_MASTER
+#define HAVE_HKDF
+#define WC_RSA_PSS
+#endif /* (ST_TLS_VERSION == 0x013) */
 
 #endif /* USER_SETTINGS_H_ */

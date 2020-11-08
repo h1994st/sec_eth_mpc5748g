@@ -181,7 +181,7 @@ a lot of data that needs to be copied, this should be set high. */
 
 /*! @brief IPv6 options of the module */
 
-#define LWIP_IPV6                     1                           /* 1: Enable IPv6, 0: Disable IPv6 */
+#define LWIP_IPV6                     0                           /* 1: Enable IPv6, 0: Disable IPv6 */
 
 /****************************************************************************
  * Transport Layer

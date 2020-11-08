@@ -8,7 +8,7 @@
 **     Version     : Component SDK_S32_PA_15, Driver 01.00, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-10-28, 14:58, # CodeGen: 4
+**     Date/Time   : 2020-11-08, 16:41, # CodeGen: 19
 **
 **     Copyright 1997 - 2015 Freescale Semiconductor, Inc. 
 **     Copyright 2016-2017 NXP 
@@ -61,7 +61,7 @@ netif_custom_t netifCfg_0 = {
     .gw = { 192,168,1,1 },
     .hostname = LWIP_NETIF_HOSTNAME_TEXT_0,
     .name = { IF_NAME_0 },
-    .has_IPv6 = true
+    .has_IPv6 = false
 };
 
 

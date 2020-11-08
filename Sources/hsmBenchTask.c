@@ -1,4 +1,5 @@
 #include "hsmBenchTask.h"
+#include "utils.h"
 
 #if ST_BENCH_W_HSM
 
@@ -56,33 +57,6 @@ typedef struct{
 /* Global variables: */
 
 /* Functions: */
-
-/* Compares two buffers; returns true if buffers are identical,
- * false if at least one element is different.
- */
-bool bufferCompare(uint8_t *buff1, uint8_t *buff2, uint32_t len)
-{
-    uint32_t idx;
-    for (idx = 0; idx < len; idx++)
-    {
-        if (buff1[idx] != buff2[idx])
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-double current_time(void)
-{
-	uint32_t msecs = OSIF_GetMilliseconds();
-	return (double) msecs / (double) 1000;
-}
-
-uint32_t current_time_ms(void)
-{
-	return OSIF_GetMilliseconds();
-}
 
 void
 custom_itoa(char *result, size_t bufsize, int number)

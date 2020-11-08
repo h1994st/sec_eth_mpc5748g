@@ -10,24 +10,14 @@
 
 #include "config.h"
 
-#if ST_TLS_APP
+#if ST_TLS_APP && (ST_TLS_TYPE == 1)
 
 #include "lwip/opt.h"
 
 #if LWIP_SOCKET
 
-#if ST_TLS_CERT_RSA_1024
-/* Use 1024 bits certificate */
-#define CERT_1024
-#else
-// -- by h1994st: use 256-bit ecc key
-#define CERT_256
-#endif /* ST_TLS_CERT_RSA_1024 */
-
-void tlsInit(void);
+void tlsServerInit(void);
 
 #endif /* LWIP_SOCKET */
-
-#endif /* ST_TLS_APP */
-
+#endif /* ST_TLS_APP && (ST_TLS_TYPE == 1) */
 #endif /* TLSSERVER_H_ */

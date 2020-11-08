@@ -53,7 +53,6 @@
 									<listOptionValue builtIn="false" value="TFM_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="ECC_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="WC_RSA_BLINDING"/>
-									<listOptionValue builtIn="false" value="WOLFSSL_IPV6"/>
 									<listOptionValue builtIn="false" value="NO_DSA"/>
 									<listOptionValue builtIn="false" value="NO_ERROR_STRINGS"/>
 									<listOptionValue builtIn="false" value="NO_OLD_TLS"/>
@@ -182,7 +181,6 @@
 									<listOptionValue builtIn="false" value="TFM_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="ECC_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="WC_RSA_BLINDING"/>
-									<listOptionValue builtIn="false" value="WOLFSSL_IPV6"/>
 									<listOptionValue builtIn="false" value="NO_DSA"/>
 									<listOptionValue builtIn="false" value="NO_ERROR_STRINGS"/>
 									<listOptionValue builtIn="false" value="NO_OLD_TLS"/>
@@ -268,7 +266,6 @@
 									<listOptionValue builtIn="false" value="TFM_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="ECC_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="WC_RSA_BLINDING"/>
-									<listOptionValue builtIn="false" value="WOLFSSL_IPV6"/>
 									<listOptionValue builtIn="false" value="NO_DSA"/>
 									<listOptionValue builtIn="false" value="NO_ERROR_STRINGS"/>
 									<listOptionValue builtIn="false" value="NO_OLD_TLS"/>
@@ -355,7 +352,6 @@
 									<listOptionValue builtIn="false" value="TFM_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="ECC_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="WC_RSA_BLINDING"/>
-									<listOptionValue builtIn="false" value="WOLFSSL_IPV6"/>
 									<listOptionValue builtIn="false" value="NO_DSA"/>
 									<listOptionValue builtIn="false" value="NO_ERROR_STRINGS"/>
 									<listOptionValue builtIn="false" value="NO_OLD_TLS"/>
@@ -487,7 +483,6 @@
 									<listOptionValue builtIn="false" value="TFM_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="ECC_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="WC_RSA_BLINDING"/>
-									<listOptionValue builtIn="false" value="WOLFSSL_IPV6"/>
 									<listOptionValue builtIn="false" value="NO_DSA"/>
 									<listOptionValue builtIn="false" value="NO_ERROR_STRINGS"/>
 									<listOptionValue builtIn="false" value="NO_OLD_TLS"/>
@@ -572,7 +567,6 @@
 									<listOptionValue builtIn="false" value="TFM_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="ECC_TIMING_RESISTANT"/>
 									<listOptionValue builtIn="false" value="WC_RSA_BLINDING"/>
-									<listOptionValue builtIn="false" value="WOLFSSL_IPV6"/>
 									<listOptionValue builtIn="false" value="NO_DSA"/>
 									<listOptionValue builtIn="false" value="NO_ERROR_STRINGS"/>
 									<listOptionValue builtIn="false" value="NO_OLD_TLS"/>
