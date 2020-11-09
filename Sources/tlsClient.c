@@ -44,6 +44,7 @@
 #include "osif.h"
 
 #include <wolfssl/wolfcrypt/error-crypt.h>
+#include <wolfssl/wolfcrypt/random.h>
 
 #define MAX_SERV                 5         /* Maximum number of services. Don't need too many */
 
@@ -51,7 +52,7 @@
 
 #define PORT   11111
 
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 16384
 char buf[BUFFER_SIZE];
 static WC_RNG rng;
 
@@ -254,6 +255,19 @@ static void socket_client_thread(void *arg) {
 
 		/* Wait for data from the server*/
 		int rxPos = 0;
+	    fd_set recvfds;
+	    int nfds = srvcb.socket + 1;
+	    struct timeval timeout = { 2, 0 };
+
+	    ret = 0;
+		while (1) {
+			FD_ZERO(&recvfds);
+			FD_SET(srvcb.socket, &recvfds);
+
+			ret = select(nfds, &recvfds, NULL, NULL, &timeout);
+			if (ret <= 0) continue; // timeout or error
+	        if (FD_ISSET(srvcb.socket, &recvfds)) break; // ready
+		}
 		printString("Receiving data ...\r\n");
 		startTs4 = current_time_ms();
 		while (rxPos < BUFFER_SIZE) {

@@ -44,13 +44,15 @@
 
 #include "osif.h"
 
+#include <wolfssl/wolfcrypt/error-crypt.h>
+
 #define MAX_SERV                 5         /* Maximum number of services. Don't need too many */
 
 #define socket_server_thread_STACKSIZE configMINIMAL_STACK_SIZE
 
 #define PORT   11111
 
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 16384
 char buf[BUFFER_SIZE];
 
 struct clientcb {
@@ -283,17 +285,27 @@ static void socket_server_thread(void *arg) {
 				 * some characters or it could be because the socket is now closed. Try reading
 				 * some data to see. */
 				int readcount;
-				readcount = wolfSSL_read(p_clientcb->ssl, &buf, BUFFER_SIZE);
+				readcount = wolfSSL_read(p_clientcb->ssl, buf, BUFFER_SIZE);
 				if (readcount <= 0) {
-					if (readcount < 0) printData("Read error\r\n", 12);
+					if (readcount < 0) printString("Read error\r\n");
 					close_socket(p_clientcb);
 					break;
 				}
-				printData("Echo data back.\r\n");
-				if (wolfSSL_write(p_clientcb->ssl, buf, strlen(buf)) < 0) {
-					close_socket(p_clientcb);
-					break;
-				}
+				printString("Echo ");
+				printInt32(readcount);
+				printString(" bytes of data back\r\n");
+
+				int err;
+				do {
+					err = 0;
+					ret = wolfSSL_write(p_clientcb->ssl, buf, readcount);
+					if (ret <= 0) {
+						err = wolfSSL_get_error(p_clientcb->ssl, 0);
+						close_socket(p_clientcb);
+						break;
+					}
+				} while (err == WC_PENDING_E);
+				printString("Echo done!\r\n");
 			}
 		}
 	}
