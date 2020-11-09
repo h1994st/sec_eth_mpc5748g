@@ -8,12 +8,12 @@
 **     Version     : Component SDK_S32_PA_15, Driver 01.00, CPU db: 3.00.000
 **     Repository  : SDK_S32_PA_15
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-11-08, 16:41, # CodeGen: 19
+**     Date/Time   : 2020-11-08, 20:00, # CodeGen: 20
 **
-**     Copyright 1997 - 2015 Freescale Semiconductor, Inc. 
-**     Copyright 2016-2017 NXP 
+**     Copyright 1997 - 2015 Freescale Semiconductor, Inc.
+**     Copyright 2016-2017 NXP
 **     All Rights Reserved.
-**     
+**
 **     THIS SOFTWARE IS PROVIDED BY NXP "AS IS" AND ANY EXPRESSED OR
 **     IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 **     OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
@@ -29,11 +29,11 @@
 /*!
 ** @file tcpip_middleware.c
 ** @version 01.00
-*/         
+*/
 /*!
 **  @addtogroup tcpip_middleware_module tcpip_middleware module documentation
 **  @{
-*/         
+*/
 
 #include "netifcfg.h"
 
@@ -51,6 +51,8 @@
 
 
 /* Each netif configuration */
+#include "config.h" // -- by h1994st
+#if ST_TLS_APP && (ST_TLS_TYPE == 1) // TLS server -- by h1994st
 netif_custom_t netifCfg_0 = {
     .num = 0,
     .hwaddr = { LWIP_MAC_ADDR_BASE_0 },
@@ -63,6 +65,20 @@ netif_custom_t netifCfg_0 = {
     .name = { IF_NAME_0 },
     .has_IPv6 = false
 };
+#else
+netif_custom_t netifCfg_0 = {
+    .num = 0,
+    .hwaddr = { LWIP_MAC_ADDR_BASE_0 },
+    .has_dhcp = false,
+    .has_auto_ip = false,
+    .ip_addr = { 192,168,1,201 },
+    .netmask = { 255,255,255,0 },
+    .gw = { 192,168,1,1 },
+    .hostname = LWIP_NETIF_HOSTNAME_TEXT_0,
+    .name = { IF_NAME_0 },
+    .has_IPv6 = false
+};
+#endif
 
 
 /* Array of netif configurations */

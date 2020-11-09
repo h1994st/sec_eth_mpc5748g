@@ -248,6 +248,8 @@ static void socket_server_thread(void *arg) {
 				if (p_clientcb->socket < 0) {
 					mem_free(p_clientcb);
 				} else {
+					printData("Connection!\r\n", 13);
+
 					/* Keep this tecb in our list */
 					p_clientcb->ssl = wolfSSL_new(ctx);
 					LWIP_ASSERT("wolfSSL_new() failed.",
@@ -283,6 +285,9 @@ static void socket_server_thread(void *arg) {
 					break;
 				}
 				buf[readcount] = 0;
+				printData("Data: ", 6);
+				printData(buf, readcount);
+				printData("\r\n", 2);
 				if (wolfSSL_write(p_clientcb->ssl, buf, strlen(buf)) < 0) {
 					close_socket(p_clientcb);
 					break;

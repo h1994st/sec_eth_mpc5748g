@@ -54,7 +54,7 @@
 #define BUFFER_SIZE 80
 char buf[BUFFER_SIZE];
 
-#define MSG_QUESTION "Send data (Y/n): "
+#define MSG_QUESTION "Connecting ...\r\n"
 #define MSG_TOSERVER "Hello, server!"
 
 struct servercb {
@@ -111,7 +111,7 @@ static void socket_client_thread(void *arg) {
 	LWIP_ASSERT("wolfSSL_Init() failed", ret == SSL_SUCCESS);
 
 	/* Create and initialize CTX */
-	WOLFSSL_METHOD* method_instance = wolfSSLv23_server_method();
+	WOLFSSL_METHOD* method_instance = wolfSSLv23_client_method();
 	ctx = wolfSSL_CTX_new(method_instance);
 	LWIP_ASSERT("wolfSSL_CTX_new() failed", ctx != NULL);
 
@@ -156,16 +156,15 @@ static void socket_client_thread(void *arg) {
 			ret == SSL_SUCCESS);
 
 	/* Load keys */
-	ret = wolfSSL_CTX_use_PrivateKey_buffer(ctx, SERVER_KEY, SERVER_KEY_SIZE,
+	ret = wolfSSL_CTX_use_PrivateKey_buffer(ctx, CLIENT_KEY, CLIENT_KEY_SIZE,
 			SSL_FILETYPE_ASN1);
 	LWIP_ASSERT("wolfSSL_CTX_use_PrivateKey_buffer() failed",
 			ret == SSL_SUCCESS);
 
 	while (1) {
-		/* Ask user */
+		/* Connecting */
+		vTaskDelay(1000); // wait 1 second
 		printData(MSG_QUESTION, strlen(MSG_QUESTION));
-		getData(buf, 1);
-		memset(buf, 0, BUFFER_SIZE);
 
 		memset(&socket_saddr, 0, sizeof(socket_saddr));
 #if LWIP_IPV6
@@ -187,16 +186,31 @@ static void socket_client_thread(void *arg) {
 		/* Put socket into connecting mode */
 		if (connect(srvcb.socket, (struct sockaddr * ) &socket_saddr,
 				sizeof(socket_saddr)) == -1) {
-			LWIP_ASSERT("socket_client_thread(): Connect failed.", 0);
+//			LWIP_ASSERT("socket_client_thread(): Connect failed.", 0);
+			printData("Connection failed\r\n", 19);
+			close(srvcb.socket);
+			continue;
 		}
+		printData("TCP connected!\r\n", 16);
 		srvcb.ssl = wolfSSL_new(ctx);
 		LWIP_ASSERT("wolfSSL_new() failed.", srvcb.ssl != NULL);
 		wolfSSL_set_fd(srvcb.ssl, srvcb.socket);
 
-		/* Send data */
 		int err;
+		/* TLS connect */
 		do {
 			err = 0;
+			ret = wolfSSL_connect(srvcb.ssl);
+			if (ret != SSL_SUCCESS) {
+				err = wolfSSL_get_error(srvcb.ssl, 0);
+			}
+		} while (err == WC_PENDING_E);
+		LWIP_ASSERT("wolfSSL_connect() failed.", ret == SSL_SUCCESS);
+
+		/* Send data */
+		do {
+			err = 0;
+			printData("Sending ...\r\n", 13);
 			ret = wolfSSL_write(srvcb.ssl, MSG_TOSERVER, strlen(MSG_TOSERVER));
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);

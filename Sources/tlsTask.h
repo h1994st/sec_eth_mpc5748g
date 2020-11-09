@@ -38,6 +38,8 @@
 #define CLIENT_CERT_SIZE	sizeof_client_cert_der_1024
 #define SERVER_KEY			server_key_der_1024
 #define SERVER_KEY_SIZE		sizeof_server_key_der_1024
+#define CLIENT_KEY			client_key_der_1024
+#define CLIENT_KEY_SIZE		sizeof_client_key_der_1024
 
 #elif (ST_TLS_CERT_TYPE == 1) // RSA 2048
 
