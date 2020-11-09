@@ -88,6 +88,12 @@ static inline void wait_for_ip(void) {
 #endif /* LWIP_IPV4 */
 }
 
+static int verifyCb(int a, WOLFSSL_X509_STORE_CTX* store) {
+	(void)a;
+	(void)store;
+	return 1;
+}
+
 /**************************************************************
  * void socket_client_thread(void *arg)
  *
@@ -116,12 +122,12 @@ static void socket_client_thread(void *arg) {
 	LWIP_ASSERT("wolfSSL_CTX_new() failed", ctx != NULL);
 
 	/* Limit to AES128 - hardware-accelerated */
-	wolfSSL_CTX_set_cipher_list(ctx, "DHE-RSA-AES128-SHA256");
+//	wolfSSL_CTX_set_cipher_list(ctx, "AES128-SHA256");
 	// -- by h1994st: use CHACHA20-POLY1305 for TLS 1.3
 //  ret = wolfSSL_CTX_set_cipher_list(ctx, "TLS13-CHACHA20-POLY1305-SHA256");
 	// -- by h1994st: use CHACHA-POLY for TLS 1.2 & DTLS
 //	ret = wolfSSL_CTX_set_cipher_list(ctx, "ECDHE-ECDSA-CHACHA20-POLY1305");
-	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
+//	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
 
 	// -- by h1994st: fewer packet
 	ret = wolfSSL_CTX_set_group_messages(ctx);
@@ -160,6 +166,9 @@ static void socket_client_thread(void *arg) {
 			SSL_FILETYPE_ASN1);
 	LWIP_ASSERT("wolfSSL_CTX_use_PrivateKey_buffer() failed",
 			ret == SSL_SUCCESS);
+
+	wolfSSL_CTX_set_verify(ctx,
+			SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, verifyCb);
 
 	while (1) {
 		/* Connecting */
