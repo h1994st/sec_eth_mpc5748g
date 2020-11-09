@@ -176,6 +176,9 @@ static void socket_client_thread(void *arg) {
 				srvcb.socket >= 0);
 
 		/* Put socket into connecting mode */
+		printString("Before connect(): ");
+		printTimestamp();
+		printString("\r\n");
 		if (connect(srvcb.socket, (struct sockaddr * ) &socket_saddr,
 				sizeof(socket_saddr)) == -1) {
 //			LWIP_ASSERT("socket_client_thread(): Connect failed.", 0);
@@ -183,7 +186,9 @@ static void socket_client_thread(void *arg) {
 			close(srvcb.socket);
 			continue;
 		}
-		printData("TCP connected!\r\n", 16);
+		printString("TCP connected: ");
+		printTimestamp();
+		printString("\r\n");
 		srvcb.ssl = wolfSSL_new(ctx);
 		LWIP_ASSERT("wolfSSL_new() failed.", srvcb.ssl != NULL);
 		wolfSSL_set_fd(srvcb.ssl, srvcb.socket);
@@ -191,20 +196,26 @@ static void socket_client_thread(void *arg) {
 		int err;
 		/* TLS connect */
 		err = 0;
+		printString("Before wolfSSL_connect(): ");
+		printTimestamp();
+		printString("\r\n");
 		ret = wolfSSL_connect(srvcb.ssl);
 		if (ret != SSL_SUCCESS) {
-			printData("Connection failed\r\n", 19);
+			printString("wolfSSL_connect failed\r\n");
 			err = wolfSSL_get_error(srvcb.ssl, 0);
 			close_socket();
 			continue;
 		}
-		LWIP_ASSERT("wolfSSL_connect() failed.", ret == SSL_SUCCESS);
-		printData("TLS connected!\r\n", 16);
+		printString("TLS connected: ");
+		printTimestamp();
+		printString("\r\n");
 
 		/* Send data */
 		do {
 			err = 0;
-			printData("Sending ...\r\n", 13);
+			printString("Before sending: ");
+			printTimestamp();
+			printString("\r\n");
 			ret = wolfSSL_write(srvcb.ssl, MSG_TOSERVER, strlen(MSG_TOSERVER));
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
@@ -219,8 +230,12 @@ static void socket_client_thread(void *arg) {
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
 			}
+			printString("After reading: ");
+			printTimestamp();
+			printString("\r\n");
 		} while (err == WC_PENDING_E || err == SSL_ERROR_WANT_READ);
 		if (ret > 0) {
+			printString("From server: ");
 			printData(buf, ret);
 			printData("\r\n", 2);
 		}
