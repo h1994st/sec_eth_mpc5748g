@@ -54,7 +54,7 @@
 #define BUFFER_SIZE 80
 char buf[BUFFER_SIZE];
 
-#define MSG_QUESTION "Connecting ...\r\n"
+#define MSG_HI "Connecting ...\r\n"
 #define MSG_TOSERVER "Hello, server!"
 
 struct servercb {
@@ -164,22 +164,14 @@ static void socket_client_thread(void *arg) {
 	while (1) {
 		/* Connecting */
 		vTaskDelay(1000); // wait 1 second
-		printData(MSG_QUESTION, strlen(MSG_QUESTION));
+		printData(MSG_HI, strlen(MSG_HI));
 
 		memset(&socket_saddr, 0, sizeof(socket_saddr));
-#if LWIP_IPV6
-		/* First acquire our socket for the connection */
-		connectfd = socket(AF_INET6, SOCK_STREAM, 0);
-		socket_saddr.sin6_family = AF_INET6;
-		socket_saddr.sin6_addr = in6addr_any;
-		socket_saddr.sin6_port = lwip_htons(PORT); /* echo server port */
-#else /* LWIP_IPV6 */
 		/* First acquire our socket for the connection */
 		srvcb.socket = socket(AF_INET, SOCK_STREAM, 0);
 		socket_saddr.sin_family = AF_INET;
-		socket_saddr.sin_addr.s_addr = PP_HTONL(LWIP_MAKEU32(192, 168, 1, 100));
+		socket_saddr.sin_addr.s_addr = PP_HTONL(LWIP_MAKEU32(192, 168, 1, 200));
 		socket_saddr.sin_port = lwip_htons(PORT); /* echo server port */
-#endif /* LWIP_IPV6 */
 		LWIP_ASSERT("socket_client_thread(): Socket create failed.",
 				srvcb.socket >= 0);
 
@@ -198,14 +190,16 @@ static void socket_client_thread(void *arg) {
 
 		int err;
 		/* TLS connect */
-		do {
-			err = 0;
-			ret = wolfSSL_connect(srvcb.ssl);
-			if (ret != SSL_SUCCESS) {
-				err = wolfSSL_get_error(srvcb.ssl, 0);
-			}
-		} while (err == WC_PENDING_E);
+		err = 0;
+		ret = wolfSSL_connect(srvcb.ssl);
+		if (ret != SSL_SUCCESS) {
+			printData("Connection failed\r\n", 19);
+			err = wolfSSL_get_error(srvcb.ssl, 0);
+			close_socket();
+			continue;
+		}
 		LWIP_ASSERT("wolfSSL_connect() failed.", ret == SSL_SUCCESS);
+		printData("TLS connected!\r\n", 16);
 
 		/* Send data */
 		do {

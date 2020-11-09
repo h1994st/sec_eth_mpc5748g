@@ -202,7 +202,7 @@ static void socket_server_thread(void *arg) {
 	// -- by h1994st: set client verification
 //	wolfSSL_CTX_set_verify(ctx,
 //			SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
-	wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, 0);
+//	wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, 0);
 
 	if (bind(listenfd, (struct sockaddr * ) &socket_saddr, sizeof(socket_saddr))
 			== -1) {
@@ -248,7 +248,7 @@ static void socket_server_thread(void *arg) {
 				if (p_clientcb->socket < 0) {
 					mem_free(p_clientcb);
 				} else {
-					printData("Connection!\r\n", 13);
+					printData("TCP connection!\r\n", 17);
 
 					/* Keep this tecb in our list */
 					p_clientcb->ssl = wolfSSL_new(ctx);
@@ -278,9 +278,9 @@ static void socket_server_thread(void *arg) {
 				 * some characters or it could be because the socket is now closed. Try reading
 				 * some data to see. */
 				int readcount;
-				readcount = wolfSSL_read(p_clientcb->ssl, &buf,
-						sizeof(buf) - 1);
+				readcount = wolfSSL_read(p_clientcb->ssl, &buf, sizeof(buf) - 1);
 				if (readcount <= 0) {
+					if (readcount < 0) printData("Read error\r\n", 12);
 					close_socket(p_clientcb);
 					break;
 				}
