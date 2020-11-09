@@ -116,7 +116,7 @@ static void socket_client_thread(void *arg) {
 	LWIP_ASSERT("wolfSSL_CTX_new() failed", ctx != NULL);
 
 	/* Limit to AES128 - hardware-accelerated */
-	wolfSSL_CTX_set_cipher_list(ctx, "AES128-SHA");
+	wolfSSL_CTX_set_cipher_list(ctx, "DHE-RSA-AES128-SHA256");
 	// -- by h1994st: use CHACHA20-POLY1305 for TLS 1.3
 //  ret = wolfSSL_CTX_set_cipher_list(ctx, "TLS13-CHACHA20-POLY1305-SHA256");
 	// -- by h1994st: use CHACHA-POLY for TLS 1.2 & DTLS
@@ -175,10 +175,13 @@ static void socket_client_thread(void *arg) {
 		LWIP_ASSERT("socket_client_thread(): Socket create failed.",
 				srvcb.socket >= 0);
 
+		uint32_t startTs1 = 0, endTs1 = 0;
+		uint32_t startTs2 = 0, endTs2 = 0;
+		uint32_t startTs3 = 0, endTs3 = 0;
+
 		/* Put socket into connecting mode */
-		printString("Before connect(): ");
-		printTimestamp();
-		printString("\r\n");
+		printString("Before connect()\r\n");
+		startTs1 = current_time_ms();
 		if (connect(srvcb.socket, (struct sockaddr * ) &socket_saddr,
 				sizeof(socket_saddr)) == -1) {
 //			LWIP_ASSERT("socket_client_thread(): Connect failed.", 0);
@@ -186,9 +189,8 @@ static void socket_client_thread(void *arg) {
 			close(srvcb.socket);
 			continue;
 		}
-		printString("TCP connected: ");
-		printTimestamp();
-		printString("\r\n");
+		endTs1 = current_time_ms();
+		printString("TCP connected!\r\n");
 		srvcb.ssl = wolfSSL_new(ctx);
 		LWIP_ASSERT("wolfSSL_new() failed.", srvcb.ssl != NULL);
 		wolfSSL_set_fd(srvcb.ssl, srvcb.socket);
@@ -196,9 +198,8 @@ static void socket_client_thread(void *arg) {
 		int err;
 		/* TLS connect */
 		err = 0;
-		printString("Before wolfSSL_connect(): ");
-		printTimestamp();
-		printString("\r\n");
+		printString("Before wolfSSL_connect()\r\n");
+		startTs2 = current_time_ms();
 		ret = wolfSSL_connect(srvcb.ssl);
 		if (ret != SSL_SUCCESS) {
 			printString("wolfSSL_connect failed\r\n");
@@ -206,16 +207,14 @@ static void socket_client_thread(void *arg) {
 			close_socket();
 			continue;
 		}
-		printString("TLS connected: ");
-		printTimestamp();
-		printString("\r\n");
+		endTs2 = current_time_ms();
+		printString("TLS connected!\r\n");
 
 		/* Send data */
 		do {
 			err = 0;
-			printString("Before sending: ");
-			printTimestamp();
-			printString("\r\n");
+			printString("Sending data ...\r\n");
+			startTs3 = current_time_ms();
 			ret = wolfSSL_write(srvcb.ssl, MSG_TOSERVER, strlen(MSG_TOSERVER));
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
@@ -230,14 +229,25 @@ static void socket_client_thread(void *arg) {
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
 			}
-			printString("After reading: ");
-			printTimestamp();
-			printString("\r\n");
+			endTs3 = current_time_ms();
 		} while (err == WC_PENDING_E || err == SSL_ERROR_WANT_READ);
 		if (ret > 0) {
 			printString("From server: ");
 			printData(buf, ret);
 			printData("\r\n", 2);
+
+			// Time
+			printString("TCP handshake: ");
+			printUint32(endTs1 - startTs1);
+			printString(" ms\r\n");
+
+			printString("TLS handshake: ");
+			printUint32(endTs2 - startTs2);
+			printString(" ms\r\n");
+
+			printString("RTT: ");
+			printUint32(endTs3 - startTs3);
+			printString(" ms\r\n");
 		}
 
 		close_socket();

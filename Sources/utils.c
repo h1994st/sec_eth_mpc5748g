@@ -73,9 +73,8 @@ size_t custom_itoa(char *result, size_t bufsize, int number) {
 	return len;
 }
 
-void printTimestamp() {
+void printUint32(uint32_t num) {
 	char buf[10];
-	uint32_t tsMs = current_time_ms();
-	size_t len = custom_itoa(buf, 10, tsMs);
+	size_t len = custom_itoa(buf, 10, num);
 	printData((uint8_t*)buf, len);
 }

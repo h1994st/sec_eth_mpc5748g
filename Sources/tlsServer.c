@@ -154,7 +154,7 @@ static void socket_server_thread(void *arg) {
 	LWIP_ASSERT("wolfSSL_CTX_new() failed", ctx != NULL);
 
 	/* Limit to AES128 - hardware-accelerated */
-	wolfSSL_CTX_set_cipher_list(ctx, "AES128-SHA");
+	wolfSSL_CTX_set_cipher_list(ctx, "DHE-RSA-AES128-SHA256");
 	// -- by h1994st: use CHACHA20-POLY1305 for TLS 1.3
 //  ret = wolfSSL_CTX_set_cipher_list(ctx, "TLS13-CHACHA20-POLY1305-SHA256");
 	// -- by h1994st: use CHACHA-POLY for TLS 1.2 & DTLS
