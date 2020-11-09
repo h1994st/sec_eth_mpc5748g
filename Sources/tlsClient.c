@@ -51,8 +51,9 @@
 
 #define PORT   11111
 
-#define BUFFER_SIZE 80
+#define BUFFER_SIZE 4096
 char buf[BUFFER_SIZE];
+static WC_RNG rng;
 
 #define MSG_HI "Connecting ...\r\n"
 #define MSG_TOSERVER "Hello, server!"
@@ -186,7 +187,8 @@ static void socket_client_thread(void *arg) {
 
 		uint32_t startTs1 = 0, endTs1 = 0;
 		uint32_t startTs2 = 0, endTs2 = 0;
-		uint32_t startTs3 = 0, endTs3 = 0;
+		uint32_t startTs3 = 0, endTs3 = 0, txTime = 0;
+		uint32_t startTs4 = 0, endTs4 = 0, rxTime = 0;
 
 		/* Put socket into connecting mode */
 		printString("Before connect()\r\n");
@@ -213,52 +215,82 @@ static void socket_client_thread(void *arg) {
 		if (ret != SSL_SUCCESS) {
 			printString("wolfSSL_connect failed\r\n");
 			err = wolfSSL_get_error(srvcb.ssl, 0);
-			close_socket();
-			continue;
+			goto cleanup;
 		}
 		endTs2 = current_time_ms();
 		printString("TLS connected!\r\n");
 
+		/* Generate random data to send */
+		ret = wc_InitRng(&rng);
+		if (ret != 0) {
+			printString("wc_InitRng() failed\r\n");
+			err = wolfSSL_get_error(srvcb.ssl, 0);
+			goto cleanup;
+		}
+		ret = wc_RNG_GenerateBlock(&rng, buf, BUFFER_SIZE);
+		wc_FreeRng(&rng);
+		if (ret != 0) {
+			printString("wc_RNG_GenerateBlock() failed\r\n");
+			err = wolfSSL_get_error(srvcb.ssl, 0);
+			goto cleanup;
+		}
+
 		/* Send data */
+		printString("Sending data ...\r\n");
+		startTs3 = current_time_ms();
 		do {
 			err = 0;
-			printString("Sending data ...\r\n");
-			startTs3 = current_time_ms();
-			ret = wolfSSL_write(srvcb.ssl, MSG_TOSERVER, strlen(MSG_TOSERVER));
+			ret = wolfSSL_write(srvcb.ssl, buf, BUFFER_SIZE);
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
 			}
 		} while (err == WC_PENDING_E);
-		LWIP_ASSERT("wolfSSL_write() failed.", ret == strlen(MSG_TOSERVER));
+		if (ret != BUFFER_SIZE) {
+			printString("wolfSSL_write() failed\r\n");
+			goto cleanup;
+		}
+		endTs3 = current_time_ms();
+		txTime += (endTs3 - startTs3);
 
 		/* Wait for data from the server*/
-		do {
+		int rxPos = 0;
+		printString("Receiving data ...\r\n");
+		startTs4 = current_time_ms();
+		while (rxPos < BUFFER_SIZE) {
 			err = 0;
-			ret = wolfSSL_read(srvcb.ssl, buf, BUFFER_SIZE - 1);
+			ret = wolfSSL_read(srvcb.ssl, buf + rxPos, BUFFER_SIZE - rxPos);
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
+				if (err != SSL_ERROR_WANT_READ) {
+					// error
+					printString("wolfSSL_read() failed\r\n");
+					goto cleanup;
+				}
+			} else {
+				rxPos += ret;
 			}
-			endTs3 = current_time_ms();
-		} while (err == WC_PENDING_E || err == SSL_ERROR_WANT_READ);
-		if (ret > 0) {
-			printString("From server: ");
-			printData(buf, ret);
-			printData("\r\n", 2);
-
-			// Time
-			printString("TCP handshake: ");
-			printUint32(endTs1 - startTs1);
-			printString(" ms\r\n");
-
-			printString("TLS handshake: ");
-			printUint32(endTs2 - startTs2);
-			printString(" ms\r\n");
-
-			printString("RTT: ");
-			printUint32(endTs3 - startTs3);
-			printString(" ms\r\n");
 		}
+		endTs4 = current_time_ms();
+		rxTime += (endTs4 - startTs4);
 
+		// Time
+		printString("TCP handshake: ");
+		printUint32(endTs1 - startTs1);
+		printString(" ms\r\n");
+
+		printString("TLS handshake: ");
+		printUint32(endTs2 - startTs2);
+		printString(" ms\r\n");
+
+		printString("TX: ");
+		printUint32(txTime);
+		printString(" ms\r\n");
+
+		printString("RX: ");
+		printUint32(rxTime);
+		printString(" ms\r\n");
+
+cleanup:
 		close_socket();
 	}
 
