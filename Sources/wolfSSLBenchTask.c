@@ -18,15 +18,24 @@
 #include "task.h"
 #endif /* defined(USING_OS_FREERTOS) */
 
+#if ST_HSM
+#include "hsm1.h"
+#include "hsm_driver.h"        /* HSM driver include */
+#endif
+
 #include "lwip/opt.h"
 #include "lwip/sys.h"
 #include "lwip/sockets.h"
 #include "lwip/mem.h"
 
 #include <string.h>
+#include <wolfssl/wolfcrypt/asn.h>
 #include <wolfssl/wolfcrypt/aes.h>
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/hmac.h>
+#include <wolfssl/wolfcrypt/rsa.h>
+#include <wolfssl/wolfcrypt/random.h>
+#include <wolfssl/wolfcrypt/signature.h>
 
 /* FreeRTOS defines: */
 #define TASK_DELAY         ((TickType_t)100 / portTICK_PERIOD_MS)
@@ -40,6 +49,8 @@
 #define AES_AUTH_TAG_SZ     16
 #define BENCH_CIPHER_ADD    AES_AUTH_TAG_SZ
 #define SHA256_SIZE         32
+#define RSA_SIG_SZ          (ST_RSA_KEY_SIZE / 8)
+#define NUM_SIGS            1
 
 /* Application defines: */
 #define TIMEOUT_ENCRYPTION    (1000U)
@@ -60,22 +71,19 @@ typedef enum{
 #endif
     HASH_SHA256,
     HASH_HMAC256,
-    RSA_ENCRYPT,
-    RSA_VERIFY,
+//    RSA_VERIFY,
+//	RSA_VERIFY_ENCODED,
+	RSA_CUSTOM_VERIFY,
 } TaskType_e;
 
 /* Structures: */
-typedef struct{
-    uint8_t ucInitVector[MESSAGE_LENGTH];
-    uint8_t ucEncMsg[MESSAGE_LENGTH];
-} Data_t;
 
 /* Global variables: */
 
 /* Functions: */
 
 /* Benchmark Tasks */
-static Aes* enc = NULL;
+
 static uint8_t ucMsg[BLOCK_SIZE] = { 0 };
 static uint8_t ucEncMsg[BLOCK_SIZE] = { 0 };
 static uint8_t ucDecMsg[BLOCK_SIZE] = { 0 };
@@ -91,10 +99,19 @@ static const uint8_t ucPlainKey[MESSAGE_LENGTH] = {
 		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
 };
 static uint8_t ucHash[SHA256_SIZE] = { 0 };
+static uint8_t ucHash2[SHA256_SIZE] = { 0 };
+//static uint8_t ucEncodedHash[SHA256_SIZE + 32] = { 0 };
+static uint8_t ucRsaSig[RSA_SIG_SZ] = { 0 };
+
 static Sha256 wcHash;
 static Hmac wcHmac;
+static Aes wcAes;
+static RsaKey wcRsaKey;
+static WC_RNG rng;
+
 static char result[38] = "Enc:           ms Dec:           ms\r\n";
 static char result2[] = "Duration:           ms\r\n";
+static char result3[] = "Sign:           ms Verify:           ms\r\n";
 static char *p = NULL;
 
 static void benchNone()
@@ -113,12 +130,12 @@ static void benchAesCbc()
 	memset(ucMsg, 0, BLOCK_SIZE);
 	memset(ucEncMsg, 0, BLOCK_SIZE);
 	memset(ucDecMsg, 0, BLOCK_SIZE);
-	memset(enc, 0, sizeof(Aes));
-	ret = wc_AesInit(enc, NULL, INVALID_DEVID);
+	memset(&wcAes, 0, sizeof(wcAes));
+	ret = wc_AesInit(&wcAes, NULL, INVALID_DEVID);
 	LWIP_ASSERT("ws_AesInit() failed", ret == 0);
 
 	/* init keys */
-	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+	ret = wc_AesSetKey(&wcAes, (byte*) ucPlainKey, sizeof(ucPlainKey),
 			(byte*) ucInitVector, AES_ENCRYPTION);
 	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
 
@@ -129,7 +146,7 @@ static void benchAesCbc()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		ret = wc_AesCbcEncrypt(enc, ucEncMsg, ucMsg, BLOCK_SIZE);
+		ret = wc_AesCbcEncrypt(&wcAes, ucEncMsg, ucMsg, BLOCK_SIZE);
 		LWIP_ASSERT("ws_AesCbcEncrypt() failed", ret == 0);
 	}
 	done_time = current_time_ms();
@@ -140,7 +157,7 @@ static void benchAesCbc()
 	while (!(*p)) *(p++) = ' ';
 
 	/* init keys */
-	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+	ret = wc_AesSetKey(&wcAes, (byte*) ucPlainKey, sizeof(ucPlainKey),
 			(byte*) ucInitVector, AES_ENCRYPTION);
 	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
 
@@ -148,7 +165,7 @@ static void benchAesCbc()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		ret = wc_AesCbcDecrypt(enc, ucDecMsg, ucEncMsg, BLOCK_SIZE);
+		ret = wc_AesCbcDecrypt(&wcAes, ucDecMsg, ucEncMsg, BLOCK_SIZE);
 		LWIP_ASSERT("ws_AesCbcDecrypt() failed", ret == 0);
 //		DEV_ASSERT(bufferCompare(ucDecMsg, ucMsg, BLOCK_SIZE));
 	}
@@ -162,7 +179,7 @@ static void benchAesCbc()
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
 			(uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 
-	wc_AesFree(enc);
+	wc_AesFree(&wcAes);
 }
 #endif
 
@@ -175,12 +192,12 @@ static void benchAesCcm()
 	memset(ucMsg, 0, BLOCK_SIZE);
 	memset(ucEncMsg, 0, BLOCK_SIZE);
 	memset(ucDecMsg, 0, BLOCK_SIZE);
-	memset(enc, 0, sizeof(Aes));
-	ret = wc_AesInit(enc, NULL, INVALID_DEVID);
+	memset(&wcAes, 0, sizeof(wcAes));
+	ret = wc_AesInit(&wcAes, NULL, INVALID_DEVID);
 	LWIP_ASSERT("ws_AesInit() failed", ret == 0);
 
 	/* init keys */
-	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+	ret = wc_AesSetKey(&wcAes, (byte*) ucPlainKey, sizeof(ucPlainKey),
 			(byte*) ucInitVector, AES_ENCRYPTION);
 	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
 
@@ -191,7 +208,7 @@ static void benchAesCcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		ret = wc_AesCcmEncrypt(enc, ucEncMsg, ucMsg, BLOCK_SIZE,
+		ret = wc_AesCcmEncrypt(&wcAes, ucEncMsg, ucMsg, BLOCK_SIZE,
 				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
 				AES_AUTH_ADD_SZ);
 		LWIP_ASSERT("ws_AesCbcEncrypt() failed", ret == 0);
@@ -204,7 +221,7 @@ static void benchAesCcm()
 	while (!(*p)) *(p++) = ' ';
 
 	/* init keys */
-	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+	ret = wc_AesSetKey(&wcAes, (byte*) ucPlainKey, sizeof(ucPlainKey),
 			(byte*) ucInitVector, AES_ENCRYPTION);
 	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
 
@@ -212,7 +229,7 @@ static void benchAesCcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		ret = wc_AesCcmDecrypt(enc, ucDecMsg, ucEncMsg, BLOCK_SIZE,
+		ret = wc_AesCcmDecrypt(&wcAes, ucDecMsg, ucEncMsg, BLOCK_SIZE,
 				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
 				AES_AUTH_ADD_SZ);
 		LWIP_ASSERT("ws_AesCbcDecrypt() failed", ret == 0);
@@ -228,7 +245,7 @@ static void benchAesCcm()
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
 			(uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 
-	wc_AesFree(enc);
+	wc_AesFree(&wcAes);
 }
 #endif
 
@@ -241,12 +258,12 @@ static void benchAesGcm()
 	memset(ucMsg, 0, BLOCK_SIZE);
 	memset(ucEncMsg, 0, BLOCK_SIZE);
 	memset(ucDecMsg, 0, BLOCK_SIZE);
-	memset(enc, 0, sizeof(Aes));
-	ret = wc_AesInit(enc, NULL, INVALID_DEVID);
+	memset(&wcAes, 0, sizeof(wcAes));
+	ret = wc_AesInit(&wcAes, NULL, INVALID_DEVID);
 	LWIP_ASSERT("ws_AesInit() failed", ret == 0);
 
 	/* init keys */
-	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+	ret = wc_AesSetKey(&wcAes, (byte*) ucPlainKey, sizeof(ucPlainKey),
 			(byte*) ucInitVector, AES_ENCRYPTION);
 	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
 
@@ -257,7 +274,7 @@ static void benchAesGcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		ret = wc_AesGcmEncrypt(enc, ucEncMsg, ucMsg, BLOCK_SIZE,
+		ret = wc_AesGcmEncrypt(&wcAes, ucEncMsg, ucMsg, BLOCK_SIZE,
 				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
 				AES_AUTH_ADD_SZ);
 		LWIP_ASSERT("ws_AesCbcEncrypt() failed", ret == 0);
@@ -270,7 +287,7 @@ static void benchAesGcm()
 	while (!(*p)) *(p++) = ' ';
 
 	/* init keys */
-	ret = wc_AesSetKey(enc, (byte*) ucPlainKey, sizeof(ucPlainKey),
+	ret = wc_AesSetKey(&wcAes, (byte*) ucPlainKey, sizeof(ucPlainKey),
 			(byte*) ucInitVector, AES_ENCRYPTION);
 	LWIP_ASSERT("ws_AesSetKey() failed", ret == 0);
 
@@ -278,7 +295,7 @@ static void benchAesGcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		ret = wc_AesGcmDecrypt(enc, ucDecMsg, ucEncMsg, BLOCK_SIZE,
+		ret = wc_AesGcmDecrypt(&wcAes, ucDecMsg, ucEncMsg, BLOCK_SIZE,
 				ucInitVector, 12, ucTag, AES_AUTH_TAG_SZ, ucAdd,
 				AES_AUTH_ADD_SZ);
 		LWIP_ASSERT("ws_AesCbcDecrypt() failed", ret == 0);
@@ -294,7 +311,7 @@ static void benchAesGcm()
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
 			(uint8_t *)result, strlen(result), TIMEOUT_ENCRYPTION);
 
-	wc_AesFree(enc);
+	wc_AesFree(&wcAes);
 }
 #endif
 
@@ -329,6 +346,8 @@ static void benchSha256()
 
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
 			(uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
+
+	wc_Sha256Free(&wcHash);
 }
 
 static void benchHmac256()
@@ -364,16 +383,231 @@ static void benchHmac256()
 
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1,
 			(uint8_t *)result2, strlen(result2), TIMEOUT_ENCRYPTION);
-}
 
-static void benchRsaEncrypt()
-{
-
+	wc_HmacFree(&wcHmac);
 }
 
 static void benchRsaVerify()
 {
+	int i;
+	int ret = 0;
+	word32 idx, sigLen = 0;
 
+	printString("RSA Sign/Verify:\r\n");
+
+	// initialize RNG
+	ret = wc_InitRng(&rng);
+	LWIP_ASSERT("wc_InitRng() failed", ret == 0);
+
+	// initialize keys
+	ret = wc_InitRsaKey(&wcRsaKey, NULL);
+	LWIP_ASSERT("wcRsaKey() failed", ret == 0);
+	idx = 0;
+	ret = wc_RsaPrivateKeyDecode(rsa_key_der, &idx, &wcRsaKey,
+			sizeof_rsa_key_der);
+	LWIP_ASSERT("wc_RsaPrivateKeyDecode() failed", ret == 0);
+
+	// RSA sign
+//	int wc_SignatureGenerate(
+//	    enum wc_HashType hash_type, enum wc_SignatureType sig_type,
+//	    const byte* data, word32 data_len,
+//	    byte* sig, word32 *sig_len,
+//	    const void* key, word32 key_len,
+//	    WC_RNG* rng);
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_SIGS; ++i)
+	{
+		ret = wc_SignatureGenerate(WC_HASH_TYPE_SHA256, WC_SIGNATURE_TYPE_RSA,
+				ucMsg, sizeof(ucMsg), ucRsaSig, &sigLen,
+				&wcRsaKey, sizeof(wcRsaKey), &rng);
+		LWIP_ASSERT("wc_SignatureGenerate() failed", ret == 0 && sigLen == RSA_SIG_SZ);
+	}
+	done_time = current_time_ms();
+	p = &result3[5];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// RSA verify
+//	int wc_SignatureVerify(
+//	    enum wc_HashType hash_type, enum wc_SignatureType sig_type,
+//	    const byte* data, word32 data_len,
+//	    const byte* sig, word32 sig_len,
+//	    const void* key, word32 key_len);
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_SIGS; ++i)
+	{
+		ret = wc_SignatureVerify(WC_HASH_TYPE_SHA256, WC_SIGNATURE_TYPE_RSA,
+				ucMsg, sizeof(ucMsg), ucRsaSig, sizeof(ucRsaSig),
+				&wcRsaKey, sizeof(wcRsaKey));
+		// ret is SIG_VERIFY_E if the verification fails
+		LWIP_ASSERT("wc_SignatureVerify() failed", ret == 0);
+	}
+	done_time = current_time_ms();
+	p = &result3[26];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// print results
+	printString(result3);
+
+	wc_FreeRng(&rng);
+	wc_FreeRsaKey(&wcRsaKey);
+}
+
+static void benchRsaVerifyEncoded()
+{
+	int i;
+	int ret = 0;
+	word32 idx, sigLen = 0;
+
+	printString("RSA w/Encoding Sign/Verify:\r\n");
+
+	// initialize RNG
+	ret = wc_InitRng(&rng);
+	LWIP_ASSERT("wc_InitRng() failed", ret == 0);
+
+	// initialize keys
+	ret = wc_InitRsaKey(&wcRsaKey, NULL);
+	LWIP_ASSERT("wcRsaKey() failed", ret == 0);
+	idx = 0;
+	ret = wc_RsaPrivateKeyDecode(rsa_key_der, &idx, &wcRsaKey,
+			sizeof_rsa_key_der);
+	LWIP_ASSERT("wc_RsaPrivateKeyDecode() failed", ret == 0);
+
+	// RSA sign
+//	int wc_SignatureGenerate(
+//	    enum wc_HashType hash_type, enum wc_SignatureType sig_type,
+//	    const byte* data, word32 data_len,
+//	    byte* sig, word32 *sig_len,
+//	    const void* key, word32 key_len,
+//	    WC_RNG* rng);
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_SIGS; ++i)
+	{
+		ret = wc_SignatureGenerate(WC_HASH_TYPE_SHA256,
+				WC_SIGNATURE_TYPE_RSA_W_ENC, ucMsg, sizeof(ucMsg),
+				ucRsaSig, &sigLen, &wcRsaKey, sizeof(wcRsaKey), &rng);
+		LWIP_ASSERT("wc_SignatureGenerate() failed", ret == 0 && sigLen == RSA_SIG_SZ);
+	}
+	done_time = current_time_ms();
+	p = &result3[5];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// RSA verify
+//	int wc_SignatureVerify(
+//	    enum wc_HashType hash_type, enum wc_SignatureType sig_type,
+//	    const byte* data, word32 data_len,
+//	    const byte* sig, word32 sig_len,
+//	    const void* key, word32 key_len);
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_SIGS; ++i)
+	{
+		ret = wc_SignatureVerify(WC_HASH_TYPE_SHA256,
+				WC_SIGNATURE_TYPE_RSA_W_ENC, ucMsg, sizeof(ucMsg),
+				ucRsaSig, sizeof(ucRsaSig), &wcRsaKey, sizeof(wcRsaKey));
+		// ret is SIG_VERIFY_E if the verification fails
+		LWIP_ASSERT("wc_SignatureVerify() failed", ret == 0);
+	}
+	done_time = current_time_ms();
+	p = &result3[26];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// print results
+	printString(result3);
+
+	wc_FreeRng(&rng);
+	wc_FreeRsaKey(&wcRsaKey);
+}
+
+static void benchRsaCustomVerify()
+{
+	int i;
+	int ret = 0;
+	word32 idx;
+
+	printString("RSA:\r\n");
+
+	// SHA256
+	memset(&wcHash, 0, sizeof(wcHash));
+	ret = wc_InitSha256(&wcHash);
+	LWIP_ASSERT("wc_InitSha256() failed", ret == 0);
+	ret = wc_Sha256Update(&wcHash, ucMsg, BLOCK_SIZE);
+	LWIP_ASSERT("wc_Sha256Update() failed", ret == 0);
+	ret = wc_Sha256Final(&wcHash, ucHash);
+	LWIP_ASSERT("wc_Sha256Final() failed", ret == 0);
+
+	printString("SHA256 done!\r\n");
+
+	// initialize keys
+	ret = wc_InitRsaKey(&wcRsaKey, NULL);
+	LWIP_ASSERT("wcRsaKey() failed", ret == 0);
+	idx = 0;
+	ret = wc_RsaPrivateKeyDecode(rsa_key_der, &idx, &wcRsaKey,
+			sizeof_rsa_key_der);
+	LWIP_ASSERT("wc_RsaPrivateKeyDecode() failed", ret == 0);
+
+	printString("RSA key done!\r\n");
+
+	// encode hash
+//	ret = wc_EncodeSignature(ucEncodedHash, ucHash, sizeof(ucHash), SHA256h);
+//	LWIP_ASSERT("wc_EncodeSignature() failed", ret >= 0 && ret <= SHA256_SIZE + 32);
+//	len = ret;
+
+	// initialize RNG
+	// FIXME: it seems the initialization random changes the state of the LinFLEX device, but the reason is unclear
+	memset(&rng, 0, sizeof(rng));
+	ret = wc_InitRng(&rng);
+	LWIP_ASSERT("wc_InitRng() failed", ret == 0);
+
+	printString("RNG done!\r\n");
+
+	// RSA sign
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_SIGS; ++i)
+	{
+		ret = wc_RsaSSL_Sign(ucHash, sizeof(ucHash), ucRsaSig, sizeof(ucRsaSig),
+				&wcRsaKey, &rng);
+		LWIP_ASSERT("wc_RsaSSL_Sign() failed", ret == 0);
+	}
+	done_time = current_time_ms();
+	p = &result3[5];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// RSA verify
+	start_time = current_time_ms();
+	for (i = 0; i < NUM_SIGS; ++i)
+	{
+		ret = wc_RsaSSL_VerifyInline(ucRsaSig, sizeof(ucRsaSig), (byte**)&ucHash2,
+				&wcRsaKey);
+		LWIP_ASSERT("wc_RsaSSL_VerifyInline() failed",
+				ret >= 0 && ret == SHA256_SIZE);
+	}
+	done_time = current_time_ms();
+	p = &result3[26];
+	memset(p, ' ', 10);
+	custom_itoa(p, 5, (done_time - start_time));
+	while (*p) p++;
+	while (!(*p)) *(p++) = ' ';
+
+	// print results
+	printString(result3);
+
+	wc_Sha256Free(&wcHash);
+	wc_FreeRng(&rng);
+	wc_FreeRsaKey(&wcRsaKey);
 }
 
 typedef void (*TaskFunc)(void);
@@ -389,15 +623,24 @@ static TaskFunc taskFuncs[] = {
 		benchAesGcm,
 #endif
 		benchSha256, benchHmac256,
-		benchRsaEncrypt, benchRsaVerify
+//		benchRsaVerify, benchRsaVerifyEncoded,
+		benchRsaCustomVerify,
 };
 
 void wolfSSLBenchMainLoopTask(void *pvParam)
 {
-	enc = (Aes*)XMALLOC(sizeof(Aes), 0, 0);
+#if ST_HSM
+    /** Initialize HSM Driver: */
+	status_t hsm_ret;
+	hsm_ret = HSM_DRV_Init(&hsm1_State);
+	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+	hsm_ret = HSM_DRV_InitRNG(1000);
+	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+#endif
+
 	do {
 
-		for (int i = TASK_NONE; i <= RSA_VERIFY; ++i)
+		for (int i = TASK_NONE; i <= RSA_CUSTOM_VERIFY; ++i)
 		{
 			vTaskDelay(TASK_DELAY);
 
@@ -405,7 +648,6 @@ void wolfSSLBenchMainLoopTask(void *pvParam)
 		}
 
 	} while (1);
-	XFREE(enc, 0, 0);
 }
 
 #endif /* ST_BENCH_WOLFSSL */

@@ -49,7 +49,7 @@ volatile int exit_code = 0;
 /* custom random seed function -- by h1994st */
 int customRandSeed(uint8_t* output, uint32_t sz) {
 	uint32_t i;
-	srand(OSIF_GetMilliseconds());
+	srand(5);
 	for (i = 0; i < sz; i++) {
 		output[i] = rand() % 256;
 	}
