@@ -41,12 +41,14 @@
     #include <config.h>
 #endif
 
+#include <wolfssl/wolfcrypt/settings.h> // move it out -- by h1994st
+
 #ifdef WOLFSSL_TLS13
 #ifdef HAVE_SESSION_TICKET
     #include <sys/time.h>
 #endif
 
-#include <wolfssl/wolfcrypt/settings.h>
+//#include <wolfssl/wolfcrypt/settings.h> // move it out, see above -- by h1994st
 
 #ifndef WOLFCRYPT_ONLY
 
