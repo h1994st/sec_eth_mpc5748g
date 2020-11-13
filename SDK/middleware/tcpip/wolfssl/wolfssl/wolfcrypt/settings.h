@@ -995,6 +995,7 @@ extern void uITRON4_free(void *p) ;
 #if ST_HSM // -- by h1994st
     #define NXP_SDK_HSM  // -- by h1994st
 	#define NXP_SDK_HSM_ALIGN 4  // 32 bits -- by h1994st
+	#define NXP_SDK_HSM_ADDR_CHECK_MASK 0x03U //  -- by h1994st
 #endif /* ST_HSM */ // -- by h1994st
     #define NXP_SDK_PIT
     #define BIG_ENDIAN_ORDER

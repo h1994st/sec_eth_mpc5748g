@@ -124,12 +124,12 @@ static void socket_client_thread(void *arg) {
 	LWIP_ASSERT("wolfSSL_CTX_new() failed", ctx != NULL);
 
 	/* Limit to AES128 - hardware-accelerated */
-//	wolfSSL_CTX_set_cipher_list(ctx, "AES128-SHA256");
+	wolfSSL_CTX_set_cipher_list(ctx, ST_TLS_CIPHER);
 	// -- by h1994st: use CHACHA20-POLY1305 for TLS 1.3
 //  ret = wolfSSL_CTX_set_cipher_list(ctx, "TLS13-CHACHA20-POLY1305-SHA256");
 	// -- by h1994st: use CHACHA-POLY for TLS 1.2 & DTLS
 //	ret = wolfSSL_CTX_set_cipher_list(ctx, "ECDHE-ECDSA-CHACHA20-POLY1305");
-//	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
+	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
 
 	// -- by h1994st: fewer packet
 	ret = wolfSSL_CTX_set_group_messages(ctx);

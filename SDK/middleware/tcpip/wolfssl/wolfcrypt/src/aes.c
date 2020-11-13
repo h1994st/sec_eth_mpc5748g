@@ -2937,7 +2937,7 @@ int wc_AesSetIV(Aes* aes, const byte* iv)
     int wc_AesCbcEncrypt(Aes* aes, byte* out, const byte* in, word32 sz)
     {
         int ret = 0;
-        uint8_t* pIn = in;
+        const uint8_t* pIn = in;
         uint8_t* pOut = out;
         uint8_t* pIv = (uint8_t*)aes->reg;
         uint8_t* pKey;
@@ -7337,10 +7337,55 @@ int wc_AesGcmEncrypt(Aes* aes, byte* out, const byte* in, word32 sz,
 
 #elif defined(NXP_SDK_HSM) // -- by h1994st
 
+    const byte* pIn = in;
+    byte* pOut = out;
+    byte* pTag = authTag;
+    byte* tmp = NULL;
+    byte* tmp_align = NULL;
+    byte* tmp_tag = NULL;
+    byte* tmp_tag_align = NULL;
+    /* Check the buffer addresses are 32 bit aligned */
+    if ((wolfssl_word)in % NXP_SDK_HSM_ALIGN) {
+    	// alignment error
+    	tmp = (byte*)XMALLOC(sz + AES_BLOCK_SIZE + NXP_SDK_HSM_ALIGN,
+    			aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+    	if (tmp == NULL) return MEMORY_E;
+
+    	tmp_align = tmp + (NXP_SDK_HSM_ALIGN - ((size_t)tmp % NXP_SDK_HSM_ALIGN));
+
+    	XMEMCPY(tmp_align, in, sz);
+
+    	pIn = tmp_align;
+    	pOut = tmp_align;
+    }
+    if ((wolfssl_word)authTag % NXP_SDK_HSM_ALIGN) {
+    	tmp_tag = (byte*)XMALLOC(authTagSz + NXP_SDK_HSM_ALIGN, aes->heap,
+    			DYNAMIC_TYPE_TMP_BUFFER);
+    	if (tmp_tag == NULL) return MEMORY_E;
+
+    	tmp_tag_align = tmp_tag + (NXP_SDK_HSM_ALIGN - ((size_t)tmp_tag % NXP_SDK_HSM_ALIGN));
+
+    	XMEMCPY(tmp_tag_align, authTag, authTagSz);
+
+    	pTag = tmp_tag_align;
+    }
+
     /* HSM AES-GCM */
-    status = HSM_DRV_EncryptGCM(HSM_RAM_KEY, ivSz, iv,
-    		authInSz, authIn, sz, in, out, authTagSz, authTag, HSM_TIMEOUT);
-    ret = (status == STATUS_SUCCESS) ? 0 : WC_TIMEOUT_E;
+	status = HSM_DRV_EncryptGCM(HSM_RAM_KEY, ivSz, iv, authInSz, authIn,
+			sz, pIn, pOut, authTagSz, pTag, HSM_TIMEOUT);
+
+	if (tmp != NULL) {
+		// copy data back
+		XMEMCPY(out, tmp_align, sz);
+		XFREE(tmp, aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+	}
+	if (tmp_tag != NULL) {
+		// copy tag back
+		XMEMCPY(authTag, tmp_tag_align, authTagSz);
+		XFREE(tmp_tag, aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+	}
+
+	ret = (status == STATUS_SUCCESS) ? 0 : WC_TIMEOUT_E;
 
 #else
 
@@ -7612,10 +7657,30 @@ int  wc_AesGcmDecrypt(Aes* aes, byte* out, const byte* in, word32 sz,
 
 #elif defined(NXP_SDK_HSM) // -- by h1994st
 
+	const byte* pTag = authTag;
+	byte* tmp_tag = NULL;
+	byte* tmp_tag_align = NULL;
+	/* Check the buffer addresses are 32 bit aligned */
+	if ((wolfssl_word)authTag % NXP_SDK_HSM_ALIGN) {
+		tmp_tag = (byte*)XMALLOC(authTagSz + NXP_SDK_HSM_ALIGN, aes->heap,
+				DYNAMIC_TYPE_TMP_BUFFER);
+		if (tmp_tag == NULL) return MEMORY_E;
+
+		tmp_tag_align = tmp_tag + (NXP_SDK_HSM_ALIGN - ((size_t)tmp_tag % NXP_SDK_HSM_ALIGN));
+
+		XMEMCPY(tmp_tag_align, authTag, authTagSz);
+
+		pTag = tmp_tag_align;
+	}
+
     /* HSM AES-GCM */
     status = HSM_DRV_DecryptGCM(HSM_RAM_KEY, ivSz, iv,
-            authInSz, authIn, sz, in, out, authTagSz, authTag, &authStatus,
+            authInSz, authIn, sz, in, out, authTagSz, pTag, &authStatus,
             HSM_TIMEOUT);
+	if (tmp_tag != NULL) {
+		// copy tag back
+		XFREE(tmp_tag, aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+	}
     if (status != STATUS_SUCCESS)
     {
         return WC_TIMEOUT_E;
@@ -7958,11 +8023,54 @@ int wc_AesCcmEncrypt(Aes* aes, byte* out, const byte* in, word32 inSz,
     {
         return WC_TIMEOUT_E;
     }
-//	hsm_ret = HSM_DRV_EncryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-//			BLOCK_SIZE, ucMsg,
-//			ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
+
+    const byte* pIn = in;
+    byte* pOut = out;
+    byte* pTag = authTag;
+    byte* tmp = NULL;
+    byte* tmp_align = NULL;
+    byte* tmp_tag = NULL;
+    byte* tmp_tag_align = NULL;
+    /* Check the buffer addresses are 32 bit aligned */
+    if ((wolfssl_word)in % NXP_SDK_HSM_ALIGN) {
+    	// alignment error
+    	tmp = (byte*)XMALLOC(inSz + AES_BLOCK_SIZE + NXP_SDK_HSM_ALIGN,
+    			aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+    	if (tmp == NULL) return MEMORY_E;
+
+    	tmp_align = tmp + (NXP_SDK_HSM_ALIGN - ((size_t)tmp % NXP_SDK_HSM_ALIGN));
+
+    	XMEMCPY(tmp_align, in, inSz);
+
+    	pIn = tmp_align;
+    	pOut = tmp_align;
+    }
+    if ((wolfssl_word)authTag % NXP_SDK_HSM_ALIGN) {
+    	tmp_tag = (byte*)XMALLOC(authTagSz + NXP_SDK_HSM_ALIGN, aes->heap,
+    			DYNAMIC_TYPE_TMP_BUFFER);
+    	if (tmp_tag == NULL) return MEMORY_E;
+
+    	tmp_tag_align = tmp_tag + (NXP_SDK_HSM_ALIGN - ((size_t)tmp_tag % NXP_SDK_HSM_ALIGN));
+
+    	XMEMCPY(tmp_tag_align, authTag, authTagSz);
+
+    	pTag = tmp_tag_align;
+    }
+
     status = HSM_DRV_EncryptCCM(HSM_RAM_KEY, nonceSz, nonce,
-    		authInSz, authIn, inSz, in, out, authTagSz, authTag, HSM_TIMEOUT);
+    		authInSz, authIn, inSz, pIn, pOut, authTagSz, pTag, HSM_TIMEOUT);
+
+	if (tmp != NULL) {
+		// copy data back
+		XMEMCPY(out, tmp_align, inSz);
+		XFREE(tmp, aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+	}
+	if (tmp_tag != NULL) {
+		// copy tag back
+		XMEMCPY(authTag, tmp_tag_align, authTagSz);
+		XFREE(tmp_tag, aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+	}
+
 	if (status != STATUS_SUCCESS)
     {
         return WC_TIMEOUT_E;
@@ -7993,12 +8101,29 @@ int  wc_AesCcmDecrypt(Aes* aes, byte* out, const byte* in, word32 inSz,
         return WC_TIMEOUT_E;
     }
 
-//	hsm_ret = HSM_DRV_DecryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
-//			BLOCK_SIZE, ucEncMsg,
-//			ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
+	const byte* pTag = authTag;
+	byte* tmp_tag = NULL;
+	byte* tmp_tag_align = NULL;
+	/* Check the buffer addresses are 32 bit aligned */
+	if ((wolfssl_word)authTag % NXP_SDK_HSM_ALIGN) {
+		tmp_tag = (byte*)XMALLOC(authTagSz + NXP_SDK_HSM_ALIGN, aes->heap,
+				DYNAMIC_TYPE_TMP_BUFFER);
+		if (tmp_tag == NULL) return MEMORY_E;
+
+		tmp_tag_align = tmp_tag + (NXP_SDK_HSM_ALIGN - ((size_t)tmp_tag % NXP_SDK_HSM_ALIGN));
+
+		XMEMCPY(tmp_tag_align, authTag, authTagSz);
+
+		pTag = tmp_tag_align;
+	}
+
     status = HSM_DRV_DecryptCCM(HSM_RAM_KEY, nonceSz, nonce,
-    		authInSz, authIn, inSz, in, out, authTagSz, authTag, &authStatus,
+    		authInSz, authIn, inSz, in, out, authTagSz, pTag, &authStatus,
 			HSM_TIMEOUT);
+	if (tmp_tag != NULL) {
+		// copy tag back
+		XFREE(tmp_tag, aes->heap, DYNAMIC_TYPE_TMP_BUFFER);
+	}
     if (status != STATUS_SUCCESS)
     {
         return WC_TIMEOUT_E;
