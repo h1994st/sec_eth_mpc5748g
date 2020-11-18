@@ -68,7 +68,7 @@ static uint8_t ucInitVector[MESSAGE_LENGTH] = {
 		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 };
 static uint8_t ucTag[AES_AUTH_TAG_SZ] = { 0 };
-static uint8_t ucAdd[AES_AUTH_TAG_SZ] = { 0 };
+static uint8_t ucAdd[AES_AUTH_ADD_SZ] = { 0 };
 static const uint8_t ucPlainKey[MESSAGE_LENGTH] = {
 		0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
 		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
@@ -83,74 +83,73 @@ static void benchNone()
 {
 	int wc_ret = 0;
 	status_t hsm_ret;
+	bool ret = false;
+	bool authStatus = false;
 
-	// is CBC deterministic?
-	memset(ucMsg, 1, BLOCK_SIZE + 1);
-	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucEncMsg, TIMEOUT_ENCRYPTION);
-	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-	hsm_ret = HSM_DRV_EncryptCBC(HSM_RAM_KEY, (uint8_t*)ucMsg, BLOCK_SIZE, (uint8_t*)ucInitVector, (uint8_t*)ucDecMsg, TIMEOUT_ENCRYPTION);
-	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-
-	bool ret = bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE);
-	if (ret) {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyy\r\n", 5, TIMEOUT_ENCRYPTION);
-	} else {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnn\r\n", 5, TIMEOUT_ENCRYPTION);
-	}
-
-	// does wolfSSL CBC work well? (wolfSSL CBC will check the address alignment)
+	// do the HSM-based APIs work correctly?
+	// cross-validate AES-GCM
 	Aes* enc = (Aes*)XMALLOC(sizeof(Aes), 0, 0);
 	wc_ret = wc_AesInit(enc, NULL, INVALID_DEVID);
 	DEV_ASSERT(wc_ret == 0);
 
 	memset(ucEncMsg, 0, BLOCK_SIZE);
-	wc_ret = wc_AesSetKey(enc, (byte*)ucPlainKey, 16, (byte*)ucInitVector,
-			AES_ENCRYPTION);
-	DEV_ASSERT(wc_ret == 0);
-	wc_ret = wc_AesCbcEncrypt(enc, ucEncMsg, ucMsg + 1, BLOCK_SIZE);
-	DEV_ASSERT(wc_ret == 0);
-	DEV_ASSERT(bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE));
-
-	memset(ucDecMsg, 0, BLOCK_SIZE);
-	wc_ret = wc_AesSetKey(enc, (byte*)ucPlainKey, 16, (byte*)ucInitVector,
-			AES_ENCRYPTION);
-	DEV_ASSERT(wc_ret == 0);
-	wc_ret = wc_AesCbcEncrypt(enc, ucDecMsg, ucMsg, BLOCK_SIZE);
+	memset(ucDecMsg, 1, BLOCK_SIZE); // to distinguish two buffers -- by h1994st
+	memset(ucTag, 0, AES_AUTH_TAG_SZ);
+	wc_ret = wc_AesGcmSetKey(enc, (byte*)ucPlainKey, 16);
 	DEV_ASSERT(wc_ret == 0);
 
-	ret = bufferCompare(ucEncMsg, ucDecMsg, BLOCK_SIZE);
-	if (ret) {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyyy\r\n", 6, TIMEOUT_ENCRYPTION);
-	} else {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnnn\r\n", 6, TIMEOUT_ENCRYPTION);
+	start_time = current_time_ms();
+	for (int i = 0; i < 5; ++i)
+	{
+		hsm_ret = HSM_DRV_EncryptGCM(HSM_RAM_KEY, 12, ucInitVector,
+				AES_AUTH_ADD_SZ, ucAdd,
+				BLOCK_SIZE, ucMsg,
+				ucEncMsg,
+				AES_AUTH_TAG_SZ, ucTag,
+				TIMEOUT_ENCRYPTION);
+		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+
+//		hsm_ret = HSM_DRV_DecryptGCM(HSM_RAM_KEY, 12, ucInitVector,
+//				AES_AUTH_ADD_SZ, ucAdd,
+//				BLOCK_SIZE, ucEncMsg,
+//				ucDecMsg,
+//				AES_AUTH_TAG_SZ, ucTag,
+//				&authStatus, TIMEOUT_ENCRYPTION);
+//		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
+//		DEV_ASSERT(authStatus == true);
+//
+//		ret = bufferCompare(ucMsg, ucDecMsg, BLOCK_SIZE);
+//		if (ret) {
+//			printString("1yyyy\r\n");
+//		} else {
+//			printString("1nnnn\r\n");
+//		}
+//
+//		ret = wc_AesGcmEncrypt(enc, ucEncMsg, ucMsg, BLOCK_SIZE,
+//				ucInitVector, 12,
+//				ucTag, AES_AUTH_TAG_SZ,
+//				ucAdd, AES_AUTH_ADD_SZ);
+//		DEV_ASSERT(ret == 0);
+
+		wc_ret = wc_AesGcmDecrypt(enc, ucDecMsg, ucEncMsg, BLOCK_SIZE,
+				ucInitVector, 12,
+				ucTag, AES_AUTH_TAG_SZ,
+				ucAdd, AES_AUTH_ADD_SZ);
+		DEV_ASSERT(wc_ret == 0);
+
+		ret = bufferCompare(ucMsg, ucDecMsg, BLOCK_SIZE);
+		if (ret) {
+			printString("2yyyy\r\n");
+		} else {
+			printString("2nnnn\r\n");
+		}
 	}
+
 	XFREE(enc, 0, 0);
-
-	// do both SHA256 output the same results?
-	Sha256 *wcHash = (Sha256*)XMALLOC(sizeof(Sha256), 0, 0);
-	wc_ret = wc_InitSha256(wcHash);
-	DEV_ASSERT(wc_ret == 0);
-	wc_ret = wc_Sha256Update(wcHash, ucMsg, BLOCK_SIZE);
-	DEV_ASSERT(wc_ret == 0);
-	wc_ret = wc_Sha256Final(wcHash, ucHash);
-	DEV_ASSERT(wc_ret == 0);
-
-	hsm_ret = HSM_DRV_HashSHA256(BLOCK_SIZE, ucMsg, ucHash2, TIMEOUT_ENCRYPTION);
-	DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
-
-	ret = bufferCompare(ucHash, ucHash2, SHA256_SIZE);
-	if (ret) {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"yyyyy\r\n", 7, TIMEOUT_ENCRYPTION);
-	} else {
-		LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)"nnnnn\r\n", 7, TIMEOUT_ENCRYPTION);
-	}
-	XFREE(wcHash, 0, 0);
-
 	memset(ucMsg, 0, BLOCK_SIZE);
 	memset(ucEncMsg, 0, BLOCK_SIZE);
 	memset(ucDecMsg, 0, BLOCK_SIZE);
-	memset(ucHash, 0, SHA256_SIZE);
-	memset(ucHash2, 0, SHA256_SIZE);
+
 	LINFLEXD_UART_DRV_SendDataBlocking(INST_LINFLEXD_UART1, (uint8_t *)MSG_HELLO, strlen(MSG_HELLO), TIMEOUT_ENCRYPTION);
 }
 
@@ -208,7 +207,7 @@ static void benchHsmAesCcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_EncryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+		hsm_ret = HSM_DRV_EncryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_ADD_SZ, ucAdd,
 				BLOCK_SIZE, ucMsg,
 				ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
 		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
@@ -228,7 +227,7 @@ static void benchHsmAesCcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_DecryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+		hsm_ret = HSM_DRV_DecryptCCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_ADD_SZ, ucAdd,
 				BLOCK_SIZE, ucEncMsg,
 				ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
 		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
@@ -260,7 +259,7 @@ static void benchHsmAesGcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_EncryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+		hsm_ret = HSM_DRV_EncryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_ADD_SZ, ucAdd,
 				BLOCK_SIZE, ucMsg,
 				ucEncMsg, AES_AUTH_TAG_SZ, ucTag, TIMEOUT_ENCRYPTION);
 		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);
@@ -280,7 +279,7 @@ static void benchHsmAesGcm()
 	start_time = current_time_ms();
 	for (i = 0; i < NUM_BLOCKS; ++i)
 	{
-		hsm_ret = HSM_DRV_DecryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_TAG_SZ, ucAdd,
+		hsm_ret = HSM_DRV_DecryptGCM(HSM_RAM_KEY, 12, ucInitVector, AES_AUTH_ADD_SZ, ucAdd,
 				BLOCK_SIZE, ucEncMsg,
 				ucDecMsg, AES_AUTH_TAG_SZ, ucTag, &authStatus, TIMEOUT_ENCRYPTION);
 		DEV_ASSERT(hsm_ret == STATUS_SUCCESS);

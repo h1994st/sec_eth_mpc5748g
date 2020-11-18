@@ -52,8 +52,7 @@
 
 #define PORT   11111
 
-#define BUFFER_SIZE 16384
-char buf[BUFFER_SIZE];
+char buf[ST_TLS_ECHO_BUFFER_SZ];
 
 struct clientcb {
 	struct clientcb *next;
@@ -285,7 +284,7 @@ static void socket_server_thread(void *arg) {
 				 * some characters or it could be because the socket is now closed. Try reading
 				 * some data to see. */
 				int readcount;
-				readcount = wolfSSL_read(p_clientcb->ssl, buf, BUFFER_SIZE);
+				readcount = wolfSSL_read(p_clientcb->ssl, buf, ST_TLS_ECHO_BUFFER_SZ);
 				if (readcount <= 0) {
 					if (readcount < 0) printString("Read error\r\n");
 					close_socket(p_clientcb);

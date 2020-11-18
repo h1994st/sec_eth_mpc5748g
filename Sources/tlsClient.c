@@ -52,8 +52,7 @@
 
 #define PORT   11111
 
-#define BUFFER_SIZE 16384
-char buf[BUFFER_SIZE];
+char buf[ST_TLS_ECHO_BUFFER_SZ];
 static WC_RNG rng;
 
 #define MSG_HI "Connecting ...\r\n"
@@ -123,13 +122,15 @@ static void socket_client_thread(void *arg) {
 	ctx = wolfSSL_CTX_new(method_instance);
 	LWIP_ASSERT("wolfSSL_CTX_new() failed", ctx != NULL);
 
+#if (ST_TLS_VERSION == 0x013) // In TLS 1.3, the client will present all available ciphers to the server
 	/* Limit to AES128 - hardware-accelerated */
-//	wolfSSL_CTX_set_cipher_list(ctx, ST_TLS_CIPHER);
+	wolfSSL_CTX_set_cipher_list(ctx, ST_TLS_CIPHER);
 	// -- by h1994st: use CHACHA20-POLY1305 for TLS 1.3
 //  ret = wolfSSL_CTX_set_cipher_list(ctx, "TLS13-CHACHA20-POLY1305-SHA256");
 	// -- by h1994st: use CHACHA-POLY for TLS 1.2 & DTLS
 //	ret = wolfSSL_CTX_set_cipher_list(ctx, "ECDHE-ECDSA-CHACHA20-POLY1305");
-//	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
+	LWIP_ASSERT("wolfSSL_CTX_set_cipher_list() failed", ret == SSL_SUCCESS);
+#endif
 
 	// -- by h1994st: fewer packet
 	ret = wolfSSL_CTX_set_group_messages(ctx);
@@ -228,7 +229,7 @@ static void socket_client_thread(void *arg) {
 			err = wolfSSL_get_error(srvcb.ssl, 0);
 			goto cleanup;
 		}
-		ret = wc_RNG_GenerateBlock(&rng, buf, BUFFER_SIZE);
+		ret = wc_RNG_GenerateBlock(&rng, buf, ST_TLS_ECHO_BUFFER_SZ);
 		wc_FreeRng(&rng);
 		if (ret != 0) {
 			printString("wc_RNG_GenerateBlock() failed\r\n");
@@ -241,12 +242,12 @@ static void socket_client_thread(void *arg) {
 		startTs3 = current_time_ms();
 		do {
 			err = 0;
-			ret = wolfSSL_write(srvcb.ssl, buf, BUFFER_SIZE);
+			ret = wolfSSL_write(srvcb.ssl, buf, ST_TLS_ECHO_BUFFER_SZ);
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
 			}
 		} while (err == WC_PENDING_E);
-		if (ret != BUFFER_SIZE) {
+		if (ret != ST_TLS_ECHO_BUFFER_SZ) {
 			printString("wolfSSL_write() failed\r\n");
 			goto cleanup;
 		}
@@ -270,9 +271,9 @@ static void socket_client_thread(void *arg) {
 		}
 		printString("Receiving data ...\r\n");
 		startTs4 = current_time_ms();
-		while (rxPos < BUFFER_SIZE) {
+		while (rxPos < ST_TLS_ECHO_BUFFER_SZ) {
 			err = 0;
-			ret = wolfSSL_read(srvcb.ssl, buf + rxPos, BUFFER_SIZE - rxPos);
+			ret = wolfSSL_read(srvcb.ssl, buf + rxPos, ST_TLS_ECHO_BUFFER_SZ - rxPos);
 			if (ret <= 0) {
 				err = wolfSSL_get_error(srvcb.ssl, 0);
 				if (err != SSL_ERROR_WANT_READ) {
